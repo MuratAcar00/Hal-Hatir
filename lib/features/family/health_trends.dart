@@ -12,9 +12,9 @@ class HealthTrendsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return SectionCard(
       icon: Icons.favorite_outline,
-      iconColor: AppColors.attention,
+      iconColor: context.sc.attention,
       title: 'Sağlık Trendleri (Beta)',
-      color: AppColors.health,
+      color: context.sc.health,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -56,8 +56,8 @@ class HealthTrendsCard extends StatelessWidget {
                           toY: y,
                           width: 28,
                           color: x == 0
-                              ? AppColors.attention.withValues(alpha: 0.5)
-                              : AppColors.attention,
+                              ? context.sc.attention.withValues(alpha: 0.5)
+                              : context.sc.attention,
                           borderRadius: BorderRadius.circular(4),
                         ),
                       ],

@@ -46,20 +46,20 @@ class HomeSimulatorScreen extends StatelessWidget {
               ),
             ),
           if (s.deviceOffline)
-            const _StatusChip(
-              color: AppColors.offline,
+            _StatusChip(
+              color: context.sc.offline,
               icon: Icons.power_off,
               text: 'Merkez cihaz çevrimdışı: sensör olayları alınmıyor',
             ),
           if (s.engine.isGuestDay)
-            const _StatusChip(
-              color: AppColors.guest,
+            _StatusChip(
+              color: context.sc.guest,
               icon: Icons.groups,
               text: 'Çoklu Kişi Algılandı: bugün uyarılar susturuldu',
             ),
           if (s.engine.inactivity != Inactivity.none)
-            const _StatusChip(
-              color: AppColors.offline,
+            _StatusChip(
+              color: context.sc.offline,
               icon: Icons.luggage,
               text: 'Uzun Süreli Hareketsizlik (Tatil/Hastane)',
             ),
@@ -72,10 +72,10 @@ class HomeSimulatorScreen extends StatelessWidget {
                   Text(dateText(now)),
                   Text(
                     hm(now),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 56,
                       fontWeight: FontWeight.w900,
-                      color: AppColors.primary,
+                      color: context.sc.primary,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -100,9 +100,9 @@ class HomeSimulatorScreen extends StatelessWidget {
                 height: 76,
                 child: FilledButton.tonal(
                   style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primary.withValues(alpha: 0.10),
-                    foregroundColor: AppColors.primary,
-                    overlayColor: AppColors.primary,
+                    backgroundColor: context.sc.primary.withValues(alpha: 0.10),
+                    foregroundColor: context.sc.primary,
+                    overlayColor: context.sc.primary,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
@@ -252,7 +252,7 @@ class _CheckInCardState extends State<_CheckInCard> {
   Widget build(BuildContext context) {
     final s = context.read<AppState>();
     return Card(
-      color: AppColors.attention.withValues(alpha: 0.18),
+      color: context.sc.attention.withValues(alpha: 0.18),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -263,9 +263,9 @@ class _CheckInCardState extends State<_CheckInCard> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.attention, width: 3),
+                  border: Border.all(color: context.sc.attention, width: 3),
                 ),
                 child: const Text(
                   '🔊 Merkez Cihaz Hoparlörü: $personName iyi misiniz?',
@@ -278,7 +278,7 @@ class _CheckInCardState extends State<_CheckInCard> {
                 height: 90,
                 child: FilledButton.icon(
                   style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.normal,
+                    backgroundColor: context.sc.normal,
                   ),
                   icon: const Icon(Icons.radio_button_checked, size: 32),
                   onPressed: s.acknowledge,
@@ -301,7 +301,7 @@ class _CheckInCardState extends State<_CheckInCard> {
               height: 110,
               child: FilledButton(
                 style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.normal,
+                  backgroundColor: context.sc.normal,
                 ),
                 onPressed: s.acknowledge,
                 child: const Text('İyiyim', style: TextStyle(fontSize: 36)),

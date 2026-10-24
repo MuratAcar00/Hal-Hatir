@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../app_state.dart';
 import 'app_colors.dart';
+import 'app_theme.dart';
 
 /// At this width and above both roles are shown side by side.
 const wideBreakpoint = 900.0;
@@ -31,6 +32,16 @@ class AppScaffold extends StatelessWidget {
         title: Text(title),
         actions: [
           ...actions,
+          Builder(
+            builder: (context) {
+              final t = context.watch<ThemeController>();
+              return IconButton(
+                icon: Icon(t.isDark ? Icons.light_mode : Icons.dark_mode),
+                tooltip: t.isDark ? 'Açık tema' : 'Koyu tema',
+                onPressed: t.toggle,
+              );
+            },
+          ),
           if (roleSwitch && !wide)
             PopupMenuButton<String>(
               icon: const Icon(Icons.swap_horiz),
@@ -72,7 +83,7 @@ class SafetyFooter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.background,
+      color: Theme.of(context).scaffoldBackgroundColor,
       child: SafeArea(
         top: false,
         child: Padding(
@@ -86,23 +97,23 @@ class SafetyFooter extends StatelessWidget {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.08),
+                  color: context.sc.primary.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(24),
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
                       Icons.shield_outlined,
                       size: 16,
-                      color: AppColors.primary,
+                      color: context.sc.primary,
                     ),
                     SizedBox(width: 6),
                     Text(
                       'Kamera ve ses yok. Ham veri evde kalır.',
                       style: TextStyle(
                         fontSize: 12,
-                        color: AppColors.primary,
+                        color: context.sc.primary,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -110,11 +121,11 @@ class SafetyFooter extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 6),
-              const Text(
+              Text(
                 'Sessiz Komşu acil durum hizmetinin yerine geçmez. '
                 "Acil durumda 112'yi arayın.",
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 11, color: AppColors.muted),
+                style: TextStyle(fontSize: 11, color: context.sc.muted),
               ),
             ],
           ),

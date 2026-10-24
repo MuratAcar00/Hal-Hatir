@@ -10,14 +10,14 @@ class SectionCard extends StatelessWidget {
     required this.title,
     required this.child,
     this.color,
-    this.iconColor = AppColors.primary,
+    this.iconColor,
   });
 
   final IconData icon;
   final String title;
   final Widget child;
   final Color? color;
-  final Color iconColor;
+  final Color? iconColor;
 
   @override
   Widget build(BuildContext context) => Card(
@@ -29,7 +29,7 @@ class SectionCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, color: iconColor, size: 28),
+              Icon(icon, color: iconColor ?? context.sc.primary, size: 28),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(

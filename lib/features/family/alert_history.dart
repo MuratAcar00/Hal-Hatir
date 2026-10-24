@@ -83,7 +83,7 @@ class AlertHistoryList extends StatelessWidget {
                 isThreeLine: true,
                 leading: Icon(
                   h.falseAlarm ? Icons.thumb_down_alt : Icons.warning_amber,
-                  color: h.falseAlarm ? AppColors.muted : AppColors.attention,
+                  color: h.falseAlarm ? context.sc.muted : context.sc.attention,
                 ),
                 title: Text(
                   '${dateText(h.start)} ${hm(h.start)} · ${levelLabel(h.maxLevel)}',

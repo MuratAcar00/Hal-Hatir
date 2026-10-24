@@ -41,9 +41,9 @@ class FamilyScreen extends StatelessWidget {
               sameDay(s.lastAckAt!, s.now))
             Card(
               child: ListTile(
-                leading: const Icon(
+                leading: Icon(
                   Icons.verified_outlined,
-                  color: AppColors.normal,
+                  color: context.sc.normal,
                   size: 30,
                 ),
                 title: Text(
@@ -149,8 +149,8 @@ class _StatusCard extends StatelessWidget {
     final s = context.watch<AppState>();
     // Hardware / mode states look different from the red health alert.
     if (s.deviceOffline) {
-      return const _ModeCard(
-        color: AppColors.offline,
+      return _ModeCard(
+        color: context.sc.offline,
         icon: Icons.power_off,
         title: 'Merkez Cihaz: Çevrimdışı (Elektrik kesintisi olabilir)',
         detail:
@@ -160,7 +160,7 @@ class _StatusCard extends StatelessWidget {
     }
     if (s.engine.inactivity == Inactivity.asking) {
       return _ModeCard(
-        color: AppColors.offline,
+        color: context.sc.offline,
         icon: Icons.luggage,
         title: 'Uzun Süreli Hareketsizlik (Tatil/Hastane)',
         detail:
@@ -175,7 +175,7 @@ class _StatusCard extends StatelessWidget {
     }
     if (s.engine.inactivity == Inactivity.frozen) {
       return _ModeCard(
-        color: AppColors.offline,
+        color: context.sc.offline,
         icon: Icons.ac_unit,
         title: 'Alarmlar donduruldu (Tatil/Hastane)',
         detail: 'Yeni bir sensör olayı gelince izleme kendiliğinden başlar.',
@@ -186,8 +186,8 @@ class _StatusCard extends StatelessWidget {
       );
     }
     if (s.alertState == AlertState.normal && s.engine.isGuestDay) {
-      return const _ModeCard(
-        color: AppColors.guest,
+      return _ModeCard(
+        color: context.sc.guest,
         icon: Icons.groups,
         title: 'Çoklu Kişi Algılandı',
         detail:
@@ -197,7 +197,7 @@ class _StatusCard extends StatelessWidget {
     }
     final (color, title, detail) = switch (s.alertState) {
       AlertState.normal => (
-        AppColors.normal,
+        context.sc.normal,
         'Bugün Normal',
         s.settings.paused
             ? 'Ziyaretçi / tatil modu açık: uyarılar duraklatıldı.'
@@ -206,17 +206,17 @@ class _StatusCard extends StatelessWidget {
             : 'İzleme saatleri dışında, yeni uyarı gönderilmez.',
       ),
       AlertState.softCheck => (
-        AppColors.attention,
+        context.sc.attention,
         'Dikkat',
         'Beklenen bir hareket olmadı. Yakınınıza "İyi misiniz?" diye soruldu.',
       ),
       AlertState.familyAlert => (
-        AppColors.alert,
+        context.sc.alert,
         'Uyarı',
         'Yakınınız 15 dakikadır cevap vermedi. Lütfen arayın.',
       ),
       AlertState.secondContactAlert => (
-        AppColors.alert,
+        context.sc.alert,
         'Uyarı',
         'Hâlâ cevap yok. ${s.settings.secondContactName.isEmpty ? 'İkinci kişiye' : '${s.settings.secondContactName} adlı kişiye'} de haber verildi.',
       ),
@@ -319,11 +319,7 @@ class _ExpectedVsActual extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.checklist,
-                    color: AppColors.primary,
-                    size: 28,
-                  ),
+                  Icon(Icons.checklist, color: context.sc.primary, size: 28),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -365,12 +361,12 @@ class _ExpectedVsActual extends StatelessWidget {
                           ? Icons.error
                           : Icons.hourglass_empty,
                       color: first != null
-                          ? AppColors.normal
+                          ? context.sc.normal
                           : confirmed
-                          ? AppColors.offline
+                          ? context.sc.offline
                           : late
-                          ? AppColors.alert
-                          : AppColors.muted,
+                          ? context.sc.alert
+                          : context.sc.muted,
                     ),
                     title: Text(exp.type.label),
                     subtitle: Text('Beklenen ${exp.windowText}'),
@@ -410,7 +406,7 @@ class _CallButton extends StatelessWidget {
     return FilledButton.icon(
       style: FilledButton.styleFrom(
         backgroundColor: emergency ? Colors.white : Colors.white24,
-        foregroundColor: emergency ? AppColors.alert : Colors.white,
+        foregroundColor: emergency ? context.sc.alert : Colors.white,
       ),
       icon: const Icon(Icons.call),
       label: Text(label),
