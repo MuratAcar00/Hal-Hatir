@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../../core/app_state.dart';
 import '../../core/models.dart';
 import '../../core/ui/app_scaffold.dart';
+import 'alert_history.dart';
+import 'settings_screen.dart';
 import 'weekly_chart.dart';
 
 class FamilyScreen extends StatelessWidget {
@@ -15,9 +17,19 @@ class FamilyScreen extends StatelessWidget {
     final last = s.lastEvent;
     return AppScaffold(
       title: 'Aile uygulaması',
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.settings),
+          tooltip: 'Ayarlar',
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
+          ),
+        ),
+      ],
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          const AlertBanner(),
           const _StatusCard(),
           Card(
             child: ListTile(
@@ -48,6 +60,8 @@ class FamilyScreen extends StatelessWidget {
               ),
             ),
           ),
+          const WeeklySummary(),
+          const AlertHistoryList(),
         ],
       ),
     );
@@ -64,7 +78,11 @@ class _StatusCard extends StatelessWidget {
       AlertState.normal => (
         Colors.green,
         'Bugün normal',
-        'Rutin beklendiği gibi.',
+        s.settings.paused
+            ? 'Ziyaretçi / tatil modu açık: uyarılar duraklatıldı.'
+            : s.settings.isMonitoring(s.now)
+            ? 'Rutin beklendiği gibi.'
+            : 'İzleme saatleri dışında, yeni uyarı gönderilmez.',
       ),
       AlertState.softCheck => (
         Colors.orange,
@@ -79,7 +97,7 @@ class _StatusCard extends StatelessWidget {
       AlertState.secondContactAlert => (
         Colors.red.shade900,
         'Uyarı',
-        'Hâlâ cevap yok. İkinci kişiye de haber verildi.',
+        'Hâlâ cevap yok. ${s.settings.secondContactName.isEmpty ? 'İkinci kişiye' : '${s.settings.secondContactName} adlı kişiye'} de haber verildi.',
       ),
     };
     return Card(

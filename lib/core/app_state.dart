@@ -8,6 +8,7 @@ import 'clock.dart';
 import 'models.dart';
 import 'rhythm.dart';
 import 'seed.dart';
+import 'settings.dart';
 
 enum Role { home, family }
 
@@ -23,6 +24,7 @@ class AppState extends ChangeNotifier {
   static const _kEngine = 'engine';
   static const _kSimNow = 'simNow';
   static const _kSpeed = 'speed';
+  static const _kSettings = 'settings';
 
   final SharedPreferences _prefs;
   final SimClock clock;
@@ -31,6 +33,7 @@ class AppState extends ChangeNotifier {
   late Rhythm rhythm;
   late DateTime _rhythmDay;
   Role? role;
+  MonitorSettings settings = const MonitorSettings();
   int _ticks = 0;
 
   static Future<AppState> load() async {
@@ -49,6 +52,12 @@ class AppState extends ChangeNotifier {
     final s = AppState._(prefs, clock, events);
     final eng = prefs.getString(_kEngine);
     if (eng != null) s.engine.loadJson(jsonDecode(eng) as Map<String, dynamic>);
+    final st = prefs.getString(_kSettings);
+    if (st != null) {
+      s.settings = MonitorSettings.fromJson(
+        jsonDecode(st) as Map<String, dynamic>,
+      );
+    }
     clock
       ..addListener(s._onTick)
       ..start();
@@ -84,13 +93,25 @@ class AppState extends ChangeNotifier {
 
   void addEvent(ActivityType type) {
     events.add(SensorEvent(type, now));
-    engine.onSensorEvent(events, rhythm);
+    engine.onSensorEvent(events, rhythm, settings: settings);
     _save();
     notifyListeners();
   }
 
   void acknowledge() {
-    engine.acknowledge(events, rhythm);
+    engine.acknowledge(events, rhythm, settings: settings);
+    _save();
+    notifyListeners();
+  }
+
+  void updateSettings(MonitorSettings s) {
+    settings = s;
+    _prefs.setString(_kSettings, jsonEncode(s.toJson()));
+    _onTick();
+  }
+
+  void markFalseAlarm(AlertRecord r) {
+    r.falseAlarm = true;
     _save();
     notifyListeners();
   }
@@ -122,7 +143,7 @@ class AppState extends ChangeNotifier {
       _rhythmDay = today;
     }
     final before = engine.state;
-    engine.tick(events, rhythm);
+    engine.tick(events, rhythm, settings: settings);
     if (engine.state != before || ++_ticks % 10 == 0) _save();
     notifyListeners();
   }

@@ -1,6 +1,7 @@
 import 'clock.dart';
 import 'models.dart';
 import 'rhythm.dart';
+import 'settings.dart';
 
 class _Trigger {
   const _Trigger(this.key, this.explanation);
@@ -25,14 +26,29 @@ class AlertEngine {
   DateTime? lastReset;
   // Deviations already answered, so they don't fire again the same day.
   final Set<String> handled = {};
+  final List<AlertRecord> history = [];
+
+  AlertRecord? get current =>
+      state == AlertState.normal || history.isEmpty ? null : history.last;
 
   /// Evaluates triggers and escalation at clock.now().
-  void tick(List<SensorEvent> events, Rhythm rhythm) {
+  /// Outside monitoring hours no new alert starts; pause mode stops alerts.
+  void tick(
+    List<SensorEvent> events,
+    Rhythm rhythm, {
+    MonitorSettings settings = MonitorSettings.allDay,
+  }) {
     final now = clock.now();
+    if (settings.paused) {
+      if (state != AlertState.normal) _reset(events, rhythm, settings);
+      return;
+    }
     if (state == AlertState.normal) {
-      final due = _dueTriggers(now, events, rhythm);
+      if (!settings.isMonitoring(now)) return;
+      final due = _dueTriggers(now, events, rhythm, settings);
       if (due.isEmpty) return;
       explanation = due.first.explanation;
+      history.add(AlertRecord(start: now, explanation: explanation!));
       _go(AlertState.softCheck, now);
     }
     if (state == AlertState.softCheck &&
@@ -46,16 +62,24 @@ class AlertEngine {
   }
 
   /// "İyiyim" pressed.
-  void acknowledge(List<SensorEvent> events, Rhythm rhythm) =>
-      _reset(events, rhythm);
+  void acknowledge(
+    List<SensorEvent> events,
+    Rhythm rhythm, {
+    MonitorSettings settings = MonitorSettings.allDay,
+  }) => _reset(events, rhythm, settings);
 
   /// A new sensor event arrived ([events] already contains it).
-  void onSensorEvent(List<SensorEvent> events, Rhythm rhythm) {
-    if (state != AlertState.normal) _reset(events, rhythm);
+  void onSensorEvent(
+    List<SensorEvent> events,
+    Rhythm rhythm, {
+    MonitorSettings settings = MonitorSettings.allDay,
+  }) {
+    if (state != AlertState.normal) _reset(events, rhythm, settings);
   }
 
   /// Fresh day: forget today's handled deviations.
   void resetDay(DateTime day) {
+    current?.resolvedAt = clock.now();
     handled.removeWhere((k) => k.startsWith(dayKey(day)));
     state = AlertState.normal;
     stateSince = null;
@@ -63,9 +87,16 @@ class AlertEngine {
     lastReset = null;
   }
 
-  void _reset(List<SensorEvent> events, Rhythm rhythm) {
+  void _reset(
+    List<SensorEvent> events,
+    Rhythm rhythm,
+    MonitorSettings settings,
+  ) {
     final now = clock.now();
-    handled.addAll(_dueTriggers(now, events, rhythm).map((t) => t.key));
+    current?.resolvedAt = now;
+    handled.addAll(
+      _dueTriggers(now, events, rhythm, settings).map((t) => t.key),
+    );
     state = AlertState.normal;
     stateSince = null;
     explanation = null;
@@ -75,12 +106,14 @@ class AlertEngine {
   void _go(AlertState s, DateTime at) {
     state = s;
     stateSince = at;
+    history.last.maxLevel = s;
   }
 
   List<_Trigger> _dueTriggers(
     DateTime now,
     List<SensorEvent> events,
     Rhythm rhythm,
+    MonitorSettings settings,
   ) {
     final today = dayOf(now);
     final past = events.where((e) => !e.time.isAfter(now)).toList();
@@ -105,7 +138,7 @@ class AlertEngine {
     }
 
     // Long silence: no event at all for silenceLimit.
-    var start = today;
+    var start = settings.periodStart(now);
     for (final e in past) {
       if (e.time.isAfter(start)) start = e.time;
     }
@@ -129,6 +162,7 @@ class AlertEngine {
     'explanation': explanation,
     'lastReset': lastReset?.toIso8601String(),
     'handled': handled.toList(),
+    'history': history.map((h) => h.toJson()).toList(),
   };
 
   void loadJson(Map<String, dynamic> j) {
@@ -139,6 +173,13 @@ class AlertEngine {
     handled
       ..clear()
       ..addAll((j['handled'] as List).cast<String>());
+    history
+      ..clear()
+      ..addAll(
+        ((j['history'] as List?) ?? const []).map(
+          (h) => AlertRecord.fromJson(h as Map<String, dynamic>),
+        ),
+      );
   }
 
   static DateTime? _date(Object? v) =>

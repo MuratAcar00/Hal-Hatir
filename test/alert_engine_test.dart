@@ -3,6 +3,7 @@ import 'package:sessiz_komsu/core/alert_engine.dart';
 import 'package:sessiz_komsu/core/clock.dart';
 import 'package:sessiz_komsu/core/models.dart';
 import 'package:sessiz_komsu/core/rhythm.dart';
+import 'package:sessiz_komsu/core/settings.dart';
 
 final monday = DateTime(2026, 10, 26);
 
@@ -100,5 +101,55 @@ void main() {
     engine.tick(events, rhythm);
     expect(engine.state, AlertState.softCheck);
     expect(engine.explanation, contains('hiç hareket yok'));
+  });
+
+  group('settings', () {
+    test('no new alert outside monitoring hours', () {
+      const st = MonitorSettings(startHour: 9, endHour: 23);
+      clock.current = monday.add(const Duration(hours: 8, minutes: 30));
+      engine.tick(events, rhythm, settings: st);
+      expect(engine.state, AlertState.normal);
+      clock.current = monday.add(const Duration(hours: 9));
+      engine.tick(events, rhythm, settings: st);
+      expect(engine.state, AlertState.softCheck);
+    });
+
+    test('wrap-around hours (23:00-06:00 quiet)', () {
+      const st = MonitorSettings(startHour: 6, endHour: 23);
+      expect(st.isMonitoring(monday.add(const Duration(hours: 23))), isFalse);
+      expect(st.isMonitoring(monday.add(const Duration(hours: 5))), isFalse);
+      expect(st.isMonitoring(monday.add(const Duration(hours: 6))), isTrue);
+      const night = MonitorSettings(startHour: 22, endHour: 8);
+      expect(night.isMonitoring(monday.add(const Duration(hours: 2))), isTrue);
+      expect(
+        night.isMonitoring(monday.add(const Duration(hours: 12))),
+        isFalse,
+      );
+    });
+
+    test('pause mode stops and clears alerts', () {
+      at(8, 40);
+      expect(engine.state, AlertState.softCheck);
+      clock.current = monday.add(const Duration(hours: 9));
+      engine.tick(
+        events,
+        rhythm,
+        settings: const MonitorSettings(paused: true),
+      );
+      expect(engine.state, AlertState.normal);
+    });
+
+    test('history records level, explanation and resolution', () {
+      at(8, 20);
+      at(8, 40);
+      engine.acknowledge(events, rhythm);
+      expect(engine.history, hasLength(1));
+      final h = engine.history.single;
+      expect(h.maxLevel, AlertState.familyAlert);
+      expect(h.explanation, contains('06:45-08:15'));
+      expect(h.resolvedAt, monday.add(const Duration(hours: 8, minutes: 40)));
+      final copy = AlertEngine(clock)..loadJson(engine.toJson());
+      expect(copy.history.single.maxLevel, AlertState.familyAlert);
+    });
   });
 }
