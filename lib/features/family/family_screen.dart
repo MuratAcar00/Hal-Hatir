@@ -4,7 +4,9 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/app_state.dart';
 import '../../core/models.dart';
+import '../../core/ui/app_colors.dart';
 import '../../core/ui/app_scaffold.dart';
+import '../../core/ui/section_card.dart';
 import '../../core/alert_engine.dart';
 import 'alert_history.dart';
 import 'health_trends.dart';
@@ -37,41 +39,38 @@ class FamilyScreen extends StatelessWidget {
           if (s.alertState == AlertState.normal &&
               s.lastAckAt != null &&
               sameDay(s.lastAckAt!, s.now))
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: Text(
-                "Yakınınız ${hm(s.lastAckAt!)}'de iyi olduğunu bildirdi",
-                style: const TextStyle(fontSize: 16),
+            Card(
+              child: ListTile(
+                leading: const Icon(
+                  Icons.verified_outlined,
+                  color: AppColors.normal,
+                  size: 30,
+                ),
+                title: Text(
+                  "Yakınınız ${hm(s.lastAckAt!)}'de iyi olduğunu bildirdi",
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ),
             ),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.schedule),
-              title: const Text('Son hareket'),
-              subtitle: Text(
-                last == null
-                    ? 'Kayıt yok'
-                    : '${sameDay(last.time, s.now) ? 'Bugün' : dateText(last.time)} '
-                          '${hm(last.time)} · ${last.type.label}',
-              ),
+          SectionCard(
+            icon: Icons.schedule,
+            title: 'Son Aktivite',
+            child: Text(
+              last == null
+                  ? 'Kayıt yok'
+                  : '${sameDay(last.time, s.now) ? 'Bugün' : dateText(last.time)} '
+                        '${hm(last.time)} · ${last.type.label}',
+              style: const TextStyle(fontSize: 18),
             ),
           ),
           const _ExpectedVsActual(),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Haftalık ritim: günün ilk hareketi',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 12),
-                  const SizedBox(height: 200, child: WeeklyChart()),
-                ],
-              ),
-            ),
+          const SectionCard(
+            icon: Icons.show_chart,
+            title: 'Haftalık ritim: günün ilk hareketi',
+            child: SizedBox(height: 200, child: WeeklyChart()),
           ),
           const HealthTrendsCard(),
           const WeeklySummary(),
@@ -101,20 +100,20 @@ class _ModeCard extends StatelessWidget {
   Widget build(BuildContext context) => Card(
     color: color,
     child: Padding(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(28),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, color: Colors.white, size: 32),
+              Icon(icon, color: Colors.white, size: 44),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   title,
                   style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w900,
                     color: Colors.white,
                   ),
                 ),
@@ -151,7 +150,7 @@ class _StatusCard extends StatelessWidget {
     // Hardware / mode states look different from the red health alert.
     if (s.deviceOffline) {
       return const _ModeCard(
-        color: Color(0xFF8D8D6E),
+        color: AppColors.offline,
         icon: Icons.power_off,
         title: 'Merkez Cihaz: Çevrimdışı (Elektrik kesintisi olabilir)',
         detail:
@@ -161,7 +160,7 @@ class _StatusCard extends StatelessWidget {
     }
     if (s.engine.inactivity == Inactivity.asking) {
       return _ModeCard(
-        color: Colors.blueGrey,
+        color: AppColors.offline,
         icon: Icons.luggage,
         title: 'Uzun Süreli Hareketsizlik (Tatil/Hastane)',
         detail:
@@ -176,7 +175,7 @@ class _StatusCard extends StatelessWidget {
     }
     if (s.engine.inactivity == Inactivity.frozen) {
       return _ModeCard(
-        color: Colors.grey,
+        color: AppColors.offline,
         icon: Icons.ac_unit,
         title: 'Alarmlar donduruldu (Tatil/Hastane)',
         detail: 'Yeni bir sensör olayı gelince izleme kendiliğinden başlar.',
@@ -188,7 +187,7 @@ class _StatusCard extends StatelessWidget {
     }
     if (s.alertState == AlertState.normal && s.engine.isGuestDay) {
       return const _ModeCard(
-        color: Color(0xFF4A78A8),
+        color: AppColors.guest,
         icon: Icons.groups,
         title: 'Çoklu Kişi Algılandı',
         detail:
@@ -198,8 +197,8 @@ class _StatusCard extends StatelessWidget {
     }
     final (color, title, detail) = switch (s.alertState) {
       AlertState.normal => (
-        Colors.green,
-        'Bugün normal',
+        AppColors.normal,
+        'Bugün Normal',
         s.settings.paused
             ? 'Ziyaretçi / tatil modu açık: uyarılar duraklatıldı.'
             : s.settings.isMonitoring(s.now)
@@ -207,40 +206,59 @@ class _StatusCard extends StatelessWidget {
             : 'İzleme saatleri dışında, yeni uyarı gönderilmez.',
       ),
       AlertState.softCheck => (
-        Colors.orange,
+        AppColors.attention,
         'Dikkat',
         'Beklenen bir hareket olmadı. Yakınınıza "İyi misiniz?" diye soruldu.',
       ),
       AlertState.familyAlert => (
-        Colors.red,
+        AppColors.alert,
         'Uyarı',
         'Yakınınız 15 dakikadır cevap vermedi. Lütfen arayın.',
       ),
       AlertState.secondContactAlert => (
-        Colors.red.shade900,
+        AppColors.alert,
         'Uyarı',
         'Hâlâ cevap yok. ${s.settings.secondContactName.isEmpty ? 'İkinci kişiye' : '${s.settings.secondContactName} adlı kişiye'} de haber verildi.',
       ),
     };
     return Card(
       color: color,
+      elevation: 4,
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(28),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
+            Row(
+              children: [
+                Icon(
+                  s.alertState == AlertState.normal
+                      ? Icons.favorite
+                      : Icons.warning_amber_rounded,
+                  color: Colors.white,
+                  size: 44,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 40,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 10),
             Text(
               detail,
-              style: const TextStyle(fontSize: 16, color: Colors.white),
+              style: const TextStyle(
+                fontSize: 18,
+                color: Colors.white,
+                fontWeight: FontWeight.w500,
+              ),
             ),
             if (s.engine.explanation != null) ...[
               const SizedBox(height: 8),
@@ -293,15 +311,30 @@ class _ExpectedVsActual extends StatelessWidget {
     final expected = s.rhythm.forDay(now);
     return Card(
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                'Bugün beklenen / gerçekleşen (${isWeekend(now) ? 'hafta sonu' : 'hafta içi'})',
-                style: Theme.of(context).textTheme.titleMedium,
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.checklist,
+                    color: AppColors.primary,
+                    size: 28,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Bugün beklenen / gerçekleşen (${isWeekend(now) ? 'hafta sonu' : 'hafta içi'})',
+                      style: const TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             if (expected.isEmpty)
@@ -332,12 +365,12 @@ class _ExpectedVsActual extends StatelessWidget {
                           ? Icons.error
                           : Icons.hourglass_empty,
                       color: first != null
-                          ? Colors.green
+                          ? AppColors.normal
                           : confirmed
-                          ? Colors.blueGrey
+                          ? AppColors.offline
                           : late
-                          ? Colors.red
-                          : Colors.grey,
+                          ? AppColors.alert
+                          : AppColors.muted,
                     ),
                     title: Text(exp.type.label),
                     subtitle: Text('Beklenen ${exp.windowText}'),
@@ -377,7 +410,7 @@ class _CallButton extends StatelessWidget {
     return FilledButton.icon(
       style: FilledButton.styleFrom(
         backgroundColor: emergency ? Colors.white : Colors.white24,
-        foregroundColor: emergency ? Colors.red.shade900 : Colors.white,
+        foregroundColor: emergency ? AppColors.alert : Colors.white,
       ),
       icon: const Icon(Icons.call),
       label: Text(label),

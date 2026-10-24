@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/app_state.dart';
 import '../../core/models.dart';
+import '../../core/ui/app_colors.dart';
 
 String levelLabel(AlertState s) => switch (s) {
   AlertState.normal => 'Normal',
@@ -82,7 +83,7 @@ class AlertHistoryList extends StatelessWidget {
                 isThreeLine: true,
                 leading: Icon(
                   h.falseAlarm ? Icons.thumb_down_alt : Icons.warning_amber,
-                  color: h.falseAlarm ? Colors.grey : Colors.orange,
+                  color: h.falseAlarm ? AppColors.muted : AppColors.attention,
                 ),
                 title: Text(
                   '${dateText(h.start)} ${hm(h.start)} · ${levelLabel(h.maxLevel)}',

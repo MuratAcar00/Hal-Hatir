@@ -6,6 +6,7 @@ import '../../core/alert_engine.dart';
 import '../../core/app_state.dart';
 import '../../core/clock.dart';
 import '../../core/models.dart';
+import '../../core/ui/app_colors.dart';
 import '../../core/ui/app_scaffold.dart';
 
 class HomeSimulatorScreen extends StatelessWidget {
@@ -46,19 +47,19 @@ class HomeSimulatorScreen extends StatelessWidget {
             ),
           if (s.deviceOffline)
             const _StatusChip(
-              color: Colors.blueGrey,
+              color: AppColors.offline,
               icon: Icons.power_off,
               text: 'Merkez cihaz çevrimdışı: sensör olayları alınmıyor',
             ),
           if (s.engine.isGuestDay)
             const _StatusChip(
-              color: Colors.blue,
+              color: AppColors.guest,
               icon: Icons.groups,
               text: 'Çoklu Kişi Algılandı: bugün uyarılar susturuldu',
             ),
           if (s.engine.inactivity != Inactivity.none)
             const _StatusChip(
-              color: Colors.grey,
+              color: AppColors.offline,
               icon: Icons.luggage,
               text: 'Uzun Süreli Hareketsizlik (Tatil/Hastane)',
             ),
@@ -73,7 +74,8 @@ class HomeSimulatorScreen extends StatelessWidget {
                     hm(now),
                     style: const TextStyle(
                       fontSize: 56,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.primary,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -90,32 +92,42 @@ class HomeSimulatorScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 8,
-            crossAxisSpacing: 8,
-            childAspectRatio: 1.6,
-            children: [
-              for (final (type, icon, label) in _eventButtons)
-                FilledButton.tonal(
+          // Full-width, tall sensor buttons.
+          for (final (type, icon, label) in _eventButtons)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: SizedBox(
+                height: 76,
+                child: FilledButton.tonal(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary.withValues(alpha: 0.10),
+                    foregroundColor: AppColors.primary,
+                    overlayColor: AppColors.primary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                  ),
                   onPressed: s.deviceOffline ? null : () => s.addEvent(type),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  child: Row(
                     children: [
-                      Icon(icon, size: 36),
-                      const SizedBox(height: 6),
-                      Text(
-                        label,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 16),
+                      Icon(icon, size: 34),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Text(
+                          label,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
+                      const Icon(Icons.touch_app_outlined),
                     ],
                   ),
                 ),
-            ],
-          ),
+              ),
+            ),
           const SizedBox(height: 12),
           Row(
             children: [
@@ -240,7 +252,7 @@ class _CheckInCardState extends State<_CheckInCard> {
   Widget build(BuildContext context) {
     final s = context.read<AppState>();
     return Card(
-      color: Colors.orange.shade100,
+      color: AppColors.attention.withValues(alpha: 0.18),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -253,7 +265,7 @@ class _CheckInCardState extends State<_CheckInCard> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.orange, width: 2),
+                  border: Border.all(color: AppColors.attention, width: 3),
                 ),
                 child: const Text(
                   '🔊 Merkez Cihaz Hoparlörü: $personName iyi misiniz?',
@@ -266,7 +278,7 @@ class _CheckInCardState extends State<_CheckInCard> {
                 height: 90,
                 child: FilledButton.icon(
                   style: FilledButton.styleFrom(
-                    backgroundColor: Colors.green.shade800,
+                    backgroundColor: AppColors.normal,
                   ),
                   icon: const Icon(Icons.radio_button_checked, size: 32),
                   onPressed: s.acknowledge,
@@ -289,7 +301,7 @@ class _CheckInCardState extends State<_CheckInCard> {
               height: 110,
               child: FilledButton(
                 style: FilledButton.styleFrom(
-                  backgroundColor: Colors.green.shade700,
+                  backgroundColor: AppColors.normal,
                 ),
                 onPressed: s.acknowledge,
                 child: const Text('İyiyim', style: TextStyle(fontSize: 36)),
