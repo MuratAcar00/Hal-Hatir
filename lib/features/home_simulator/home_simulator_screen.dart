@@ -24,7 +24,7 @@ class HomeSimulatorScreen extends StatelessWidget {
     return AppScaffold(
       title: 'Ev simülatörü',
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 48),
         children: [
           if (s.alertState != AlertState.normal) const _CheckInCard(),
           Card(
@@ -125,7 +125,6 @@ class _CheckInCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = context.read<AppState>();
-    final familyNotified = s.alertState != AlertState.softCheck;
     return Card(
       color: Colors.orange.shade100,
       child: Padding(
@@ -149,11 +148,11 @@ class _CheckInCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Text(
-              familyNotified
-                  ? 'Ailenize haber verildi. "İyiyim" derseniz rahatlarlar.'
-                  : 'Cevap gelmezse 15 dakika sonra ailenize haber verilecek.',
-            ),
+            Text(switch (s.alertState) {
+              AlertState.familyAlert => 'Ailenize haber verildi',
+              AlertState.secondContactAlert => 'İkinci kişiye haber verildi',
+              _ => 'Cevap gelmezse 15 dakika sonra ailenize haber verilecek',
+            }),
           ],
         ),
       ),

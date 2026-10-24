@@ -27,10 +27,20 @@ class FamilyScreen extends StatelessWidget {
         ),
       ],
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 48),
         children: [
           const AlertBanner(),
           const _StatusCard(),
+          if (s.alertState == AlertState.normal &&
+              s.lastAckAt != null &&
+              sameDay(s.lastAckAt!, s.now))
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Text(
+                "Yakınınız ${hm(s.lastAckAt!)}'de iyi olduğunu bildirdi",
+                style: const TextStyle(fontSize: 16),
+              ),
+            ),
           Card(
             child: ListTile(
               leading: const Icon(Icons.schedule),
@@ -166,15 +176,27 @@ class _ExpectedVsActual extends StatelessWidget {
                       .firstOrNull;
                   final late =
                       first == null && !now.isBefore(exp.deadlineOn(now));
+                  // Missed but answered with "İyiyim": neutral, not red.
+                  final confirmed =
+                      late &&
+                      s.lastAckAt != null &&
+                      sameDay(s.lastAckAt!, now) &&
+                      s.engine.handled.contains(
+                        '${dayKey(now)}|${exp.type.id}',
+                      );
                   return ListTile(
                     leading: Icon(
                       first != null
                           ? Icons.check_circle
+                          : confirmed
+                          ? Icons.check_circle_outline
                           : late
                           ? Icons.error
                           : Icons.hourglass_empty,
                       color: first != null
                           ? Colors.green
+                          : confirmed
+                          ? Colors.blueGrey
                           : late
                           ? Colors.red
                           : Colors.grey,
@@ -184,6 +206,8 @@ class _ExpectedVsActual extends StatelessWidget {
                     trailing: Text(
                       first != null
                           ? hm(first.time)
+                          : confirmed
+                          ? 'Atlandı, onaylandı'
                           : late
                           ? 'Olmadı'
                           : 'Bekleniyor',

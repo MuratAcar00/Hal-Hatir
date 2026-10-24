@@ -40,7 +40,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       title: 'Ayarlar',
       roleSwitch: false,
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 48),
         children: [
           Text(
             'İzleme saatleri',

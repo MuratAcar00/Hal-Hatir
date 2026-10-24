@@ -98,7 +98,11 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Last "İyiyim" time (shown to the family).
+  DateTime? lastAckAt;
+
   void acknowledge() {
+    lastAckAt = now;
     engine.acknowledge(events, rhythm, settings: settings);
     _save();
     notifyListeners();
