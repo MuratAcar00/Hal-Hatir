@@ -36,6 +36,10 @@ ThemeData buildTheme(Brightness b) {
   );
   final base = ThemeData(useMaterial3: true, colorScheme: scheme);
   final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(14));
+  final hoverElevation = WidgetStateProperty.resolveWith<double>(
+    (states) => states.contains(WidgetState.hovered) ? 6 : 0,
+  );
+  const hoverShadow = WidgetStatePropertyAll<Color>(Colors.black54);
   return base.copyWith(
     scaffoldBackgroundColor: bg,
     extensions: [dark ? StatusColors.dark : StatusColors.light],
@@ -45,7 +49,10 @@ ThemeData buildTheme(Brightness b) {
       shadowColor: Colors.black26,
       surfaceTintColor: Colors.transparent,
       margin: const EdgeInsets.symmetric(vertical: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: AppColors.border(b)),
+      ),
     ),
     appBarTheme: AppBarTheme(
       backgroundColor: bg,
@@ -68,13 +75,16 @@ ThemeData buildTheme(Brightness b) {
           bodyMedium: TextStyle(fontSize: 16, color: text),
         ),
     filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(shape: shape),
+      style: FilledButton.styleFrom(shape: shape).copyWith(
+        elevation: hoverElevation,
+        shadowColor: hoverShadow,
+      ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         shape: shape,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      ),
+      ).copyWith(elevation: hoverElevation, shadowColor: hoverShadow),
     ),
   );
 }

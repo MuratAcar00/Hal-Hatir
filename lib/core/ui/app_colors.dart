@@ -21,6 +21,11 @@ class AppColors {
   static const darkBackground = Color(0xFF0F172A);
   static const darkCard = Color(0xFF1E293B);
   static const darkText = Color(0xFFF8FAFC);
+
+  /// Thin card / divider line.
+  static Color border(Brightness b) => b == Brightness.dark
+      ? const Color(0xFF334155)
+      : const Color(0xFFE2E8F0);
 }
 
 /// Status colors that resolve by brightness.
@@ -58,7 +63,7 @@ class StatusColors extends ThemeExtension<StatusColors> {
 
   static const dark = StatusColors(
     primary: AppColors.darkPrimary,
-    normal: Color(0xFF059669),
+    normal: Color(0xFF0D9488),
     attention: Color(0xFFD97706),
     alert: Color(0xFFDC2626),
     offline: Color(0xFF475569),

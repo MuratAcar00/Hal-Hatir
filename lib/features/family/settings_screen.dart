@@ -6,7 +6,10 @@ import '../../core/models.dart';
 import '../../core/ui/app_scaffold.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  const SettingsScreen({super.key, this.embedded = false});
+
+  /// True inside the web dashboard (no own Scaffold).
+  final bool embedded;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -45,10 +48,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
           onChanged: (v) => onChanged(v!),
         );
-    return AppScaffold(
-      title: 'Ayarlar',
-      roleSwitch: false,
-      body: ListView(
+    final list = ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 48),
         children: [
           Text(
@@ -119,7 +119,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 s.updateSettings(st.copyWith(familyPhone: v.trim())),
           ),
         ],
-      ),
     );
+    return widget.embedded
+        ? list
+        : AppScaffold(title: 'Ayarlar', roleSwitch: false, body: list);
   }
 }

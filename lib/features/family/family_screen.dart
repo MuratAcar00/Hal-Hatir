@@ -35,7 +35,7 @@ class FamilyScreen extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 48),
         children: [
           const AlertBanner(),
-          const _StatusCard(),
+          const StatusCard(),
           if (s.alertState == AlertState.normal &&
               s.lastAckAt != null &&
               sameDay(s.lastAckAt!, s.now))
@@ -66,7 +66,7 @@ class FamilyScreen extends StatelessWidget {
               style: const TextStyle(fontSize: 18),
             ),
           ),
-          const _ExpectedVsActual(),
+          const ExpectedVsActual(),
           const SectionCard(
             icon: Icons.show_chart,
             title: 'Haftalık ritim: günün ilk hareketi',
@@ -97,7 +97,7 @@ class _ModeCard extends StatelessWidget {
   final Widget? action;
 
   @override
-  Widget build(BuildContext context) => Card(
+  Widget build(BuildContext context) => BannerCard(
     color: color,
     child: Padding(
       padding: const EdgeInsets.all(28),
@@ -106,14 +106,14 @@ class _ModeCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, color: Colors.white, size: 44),
+              Icon(icon, color: Colors.white, size: 30),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   title,
                   style: const TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w900,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
                     color: Colors.white,
                   ),
                 ),
@@ -141,8 +141,8 @@ class _ModeCard extends StatelessWidget {
   );
 }
 
-class _StatusCard extends StatelessWidget {
-  const _StatusCard();
+class StatusCard extends StatelessWidget {
+  const StatusCard({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -221,9 +221,8 @@ class _StatusCard extends StatelessWidget {
         'Hâlâ cevap yok. ${s.settings.secondContactName.isEmpty ? 'İkinci kişiye' : '${s.settings.secondContactName} adlı kişiye'} de haber verildi.',
       ),
     };
-    return Card(
+    return BannerCard(
       color: color,
-      elevation: 4,
       child: Padding(
         padding: const EdgeInsets.all(28),
         child: Column(
@@ -233,18 +232,18 @@ class _StatusCard extends StatelessWidget {
               children: [
                 Icon(
                   s.alertState == AlertState.normal
-                      ? Icons.favorite
+                      ? Icons.verified_user
                       : Icons.warning_amber_rounded,
                   color: Colors.white,
-                  size: 44,
+                  size: 32,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     title,
                     style: const TextStyle(
-                      fontSize: 40,
-                      fontWeight: FontWeight.w900,
+                      fontSize: 32,
+                      fontWeight: FontWeight.w800,
                       color: Colors.white,
                     ),
                   ),
@@ -300,8 +299,8 @@ class _StatusCard extends StatelessWidget {
   }
 }
 
-class _ExpectedVsActual extends StatelessWidget {
-  const _ExpectedVsActual();
+class ExpectedVsActual extends StatelessWidget {
+  const ExpectedVsActual({super.key});
 
   @override
   Widget build(BuildContext context) {

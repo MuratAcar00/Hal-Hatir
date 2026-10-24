@@ -49,3 +49,30 @@ class SectionCard extends StatelessWidget {
     ),
   );
 }
+
+/// Wide status banner: subtle gradient from deep navy toward the status color.
+class BannerCard extends StatelessWidget {
+  const BannerCard({super.key, required this.color, required this.child});
+
+  final Color color;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final navy = dark ? const Color(0xFF0F2036) : const Color(0xFF0B3340);
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [Color.lerp(navy, color, 0.15)!, Color.lerp(navy, color, 0.8)!],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+      ),
+      child: child,
+    );
+  }
+}

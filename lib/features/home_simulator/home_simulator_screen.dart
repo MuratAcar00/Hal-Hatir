@@ -8,15 +8,29 @@ import '../../core/clock.dart';
 import '../../core/models.dart';
 import '../../core/ui/app_colors.dart';
 import '../../core/ui/app_scaffold.dart';
+import '../../core/ui/hover_card.dart';
 
 class HomeSimulatorScreen extends StatelessWidget {
   const HomeSimulatorScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      const AppScaffold(title: 'Ev simülatörü', body: HomeSimulatorBody());
+}
+
+/// Simulator controls; also reused in the web dashboard side panel.
+class HomeSimulatorBody extends StatelessWidget {
+  const HomeSimulatorBody({super.key});
 
   static const _eventButtons = [
     (ActivityType.kettle, Icons.coffee_maker, 'Çaydanlığı aç'),
     (ActivityType.door, Icons.door_front_door, 'Kapıyı aç'),
     (ActivityType.motionBedroom, Icons.bed, 'Yatak odası hareketi'),
     (ActivityType.motionKitchen, Icons.kitchen, 'Mutfak hareketi'),
+    (ActivityType.bathroomDoor, Icons.wc, 'Banyo Kapısı'),
+    (ActivityType.fridge, Icons.kitchen_outlined, 'Buzdolabı Kapağı'),
+    (ActivityType.couch, Icons.weekend_outlined, 'Koltuk/TV Sensörü'),
+    (ActivityType.medicine, Icons.medical_services_outlined, 'İlaç Kutusu'),
   ];
 
   @override
@@ -24,9 +38,7 @@ class HomeSimulatorScreen extends StatelessWidget {
     final s = context.watch<AppState>();
     final now = s.now;
     final today = s.eventsOn(now);
-    return AppScaffold(
-      title: 'Ev simülatörü',
-      body: ListView(
+    return ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 48),
         children: [
           if (s.demoRunning)
@@ -78,8 +90,37 @@ class HomeSimulatorScreen extends StatelessWidget {
                       color: context.sc.primary,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   SegmentedButton<int>(
+                    showSelectedIcon: false,
+                    expandedInsets: EdgeInsets.zero,
+                    style: ButtonStyle(
+                      side: WidgetStatePropertyAll(
+                        BorderSide(
+                          color: AppColors.border(
+                            Theme.of(context).brightness,
+                          ),
+                        ),
+                      ),
+                      shape: WidgetStatePropertyAll(
+                        RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      backgroundColor: WidgetStateProperty.resolveWith(
+                        (st) => st.contains(WidgetState.selected)
+                            ? context.sc.primary.withValues(alpha: 0.18)
+                            : Colors.transparent,
+                      ),
+                      foregroundColor: WidgetStateProperty.resolveWith(
+                        (st) => st.contains(WidgetState.selected)
+                            ? context.sc.primary
+                            : context.sc.muted,
+                      ),
+                      textStyle: const WidgetStatePropertyAll(
+                        TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ),
                     segments: [
                       for (final sp in SimClock.speeds)
                         ButtonSegment(value: sp, label: Text('${sp}x')),
@@ -87,47 +128,74 @@ class HomeSimulatorScreen extends StatelessWidget {
                     selected: {s.clock.speed},
                     onSelectionChanged: (v) => s.setSpeed(v.first),
                   ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Simülasyon hızı',
+                    style: TextStyle(fontSize: 11, color: context.sc.muted),
+                  ),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 8),
-          // Full-width, tall sensor buttons.
-          for (final (type, icon, label) in _eventButtons)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: SizedBox(
-                height: 76,
-                child: FilledButton.tonal(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: context.sc.primary.withValues(alpha: 0.10),
-                    foregroundColor: context.sc.primary,
-                    overlayColor: context.sc.primary,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                  ),
-                  onPressed: s.deviceOffline ? null : () => s.addEvent(type),
-                  child: Row(
-                    children: [
-                      Icon(icon, size: 34),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Text(
-                          label,
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w700,
-                          ),
+          Text(
+            'Sensörler',
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              color: context.sc.muted,
+            ),
+          ),
+          const SizedBox(height: 8),
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            childAspectRatio: 1.9,
+            children: [
+              for (final (type, icon, label) in _eventButtons)
+                HoverLift(
+                  radius: 14,
+                  shadow: false,
+                  child: FilledButton.tonal(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: context.sc.primary.withValues(
+                        alpha: 0.08,
+                      ),
+                      foregroundColor: context.sc.primary,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        side: BorderSide(
+                          color: context.sc.primary.withValues(alpha: 0.25),
                         ),
                       ),
-                      const Icon(Icons.touch_app_outlined),
-                    ],
+                    ),
+                    onPressed: s.deviceOffline ? null : () => s.addEvent(type),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(icon, size: 24),
+                        const SizedBox(height: 6),
+                        Text(
+                          label,
+                          maxLines: 2,
+                          textAlign: TextAlign.center,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            height: 1.15,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ),
+            ],
+          ),
           const SizedBox(height: 12),
           Row(
             children: [
@@ -203,7 +271,6 @@ class HomeSimulatorScreen extends StatelessWidget {
               title: Text(e.type.label),
             ),
         ],
-      ),
     );
   }
 }

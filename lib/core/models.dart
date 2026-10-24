@@ -13,7 +13,21 @@ enum ActivityType {
     'Mutfak hareketi',
     'mutfakta hareket oluyor',
     'hareket olmadı',
-  );
+  ),
+  bathroomDoor(
+    'bathroom_door',
+    'Banyo kapısı',
+    'banyo kapısı açılıyor',
+    'açılmadı',
+  ),
+  fridge(
+    'fridge',
+    'Buzdolabı kapağı',
+    'buzdolabı kapağı açılıyor',
+    'açılmadı',
+  ),
+  couch('couch', 'Koltuk/TV', 'koltukta oturuluyor', 'hareket olmadı'),
+  medicine('medicine', 'İlaç kutusu', 'ilaç kutusu açılıyor', 'açılmadı');
 
   const ActivityType(this.id, this.label, this.habit, this.missing);
   final String id;
