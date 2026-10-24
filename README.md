@@ -1,17 +1,43 @@
-# sessiz_komsu
+# Sessiz Komşu
 
-A new Flutter project.
+Yalnız yaşayan yaşlılar için kamerasız, giyilebilir cihaz gerektirmeyen rutin takibi.
+42 Istanbul "Save the Future" ideathon demosu.
 
-## Getting Started
+## Ne yapar?
 
-This project is a starting point for a Flutter application.
+Evde birkaç basit sensör vardır: akıllı priz (çaydanlık), kapı sensörü ve hareket sensörleri.
+Sessiz Komşu son 14 günden kişinin günlük ritmini öğrenir (hafta içi ve hafta sonu ayrı).
+Beklenen bir hareket olmazsa:
 
-A few resources to get you started if this is your first Flutter project:
+1. Önce yaşlıya nazikçe sorar: **"İyi misiniz?"** ve tek büyük **"İyiyim"** düğmesi.
+2. 15 dakika cevap yoksa **aileye uyarı** gider.
+3. 30 dakika daha cevap yoksa **ikinci kişiye** haber verilir.
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+Yalnızca **rutin sapması** ve **uzun sessizlik** yakalanır. Her uyarıda "Neden uyardı?" açıklaması,
+uyarı geçmişi ve "Bu uyarı yanlış alarmdı" geri bildirimi vardır. İzleme saatleri ve
+ziyaretçi/tatil modu ayarlanabilir.
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Bu demoda backend ve gerçek sensör yoktur; tüm veri cihazda simüle edilir ve saklanır.
+
+## Çalıştırma
+
+```bash
+flutter pub get
+flutter devices
+flutter run -d <cihaz-id>     # Android telefon (USB hata ayıklama açık)
+flutter run -d chrome          # Web
+flutter build apk --debug
+flutter build web --release    # Alt klasör için: --base-href /sessiz/
+```
+
+Telefonda USB hata ayıklama: Ayarlar → Telefon hakkında → Yapım numarasına 7 kez dokunun →
+Geliştirici seçenekleri → USB hata ayıklama.
+
+Demo: "Ev simülatörü"nde **Demo senaryosunu oynat** düğmesine basın (yaklaşık 1 dakika).
+900 px ve daha geniş ekranlarda ev simülatörü ve aile uygulaması yan yana görünür.
+
+## Gizlilik
+
+- Kamera ve ses yok; giyilecek cihaz yok.
+- Ham sensör verisi evde kalır; aileye yalnızca durum ve uyarı gider.
+- Sessiz Komşu tıbbi cihaz veya acil durum hizmeti **değildir**. Acil durumda **112**'yi arayın.

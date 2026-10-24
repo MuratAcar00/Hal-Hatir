@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/app_state.dart';
 import '../../core/models.dart';
+import '../../core/rhythm.dart';
 
 /// First activity time of each of the last 7 days (today included).
 class WeeklyChart extends StatelessWidget {
@@ -18,7 +19,10 @@ class WeeklyChart extends StatelessWidget {
     ];
     final spots = <FlSpot>[];
     for (var i = 0; i < days.length; i++) {
-      final ev = s.eventsOn(days[i]);
+      final ev = s
+          .eventsOn(days[i])
+          .where((e) => e.time.hour >= Rhythm.dayStartHour)
+          .toList();
       if (ev.isNotEmpty) {
         spots.add(FlSpot(i.toDouble(), minuteOfDay(ev.first.time) / 60));
       }

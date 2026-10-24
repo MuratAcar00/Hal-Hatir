@@ -5,6 +5,7 @@ import 'core/app_state.dart';
 import 'core/ui/app_scaffold.dart';
 import 'features/family/family_screen.dart';
 import 'features/home_simulator/home_simulator_screen.dart';
+import 'features/role_select/privacy_screen.dart';
 import 'features/role_select/role_select_screen.dart';
 
 Future<void> main() async {
@@ -21,12 +22,15 @@ class SessizKomsuApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final role = context.select((AppState s) => s.role);
+    final privacySeen = context.select((AppState s) => s.privacySeen);
     return MaterialApp(
       title: 'Sessiz Komşu',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(colorSchemeSeed: Colors.teal, useMaterial3: true),
       home: LayoutBuilder(
-        builder: (context, c) => c.maxWidth >= wideBreakpoint
+        builder: (context, c) => !privacySeen
+            ? const PrivacyScreen()
+            : c.maxWidth >= wideBreakpoint
             ? const _SplitView()
             : switch (role) {
                 null => const RoleSelectScreen(),

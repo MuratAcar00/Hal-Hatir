@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -6,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'alert_engine.dart';
 import 'clock.dart';
 import 'models.dart';
+import 'notifier.dart';
 import 'rhythm.dart';
 import 'seed.dart';
 import 'settings.dart';
@@ -25,6 +27,8 @@ class AppState extends ChangeNotifier {
   static const _kSimNow = 'simNow';
   static const _kSpeed = 'speed';
   static const _kSettings = 'settings';
+  static const _kLastAck = 'lastAckAt';
+  static const _kPrivacySeen = 'privacySeen';
 
   final SharedPreferences _prefs;
   final SimClock clock;
@@ -35,6 +39,13 @@ class AppState extends ChangeNotifier {
   Role? role;
   MonitorSettings settings = const MonitorSettings();
   int _ticks = 0;
+  final notifier = AlertNotifier();
+  bool privacySeen = false;
+
+  // Guided demo: step label (null when not running) and its timers.
+  String? demoLabel;
+  int _demoStep = 0;
+  final List<Timer> _demoTimers = [];
 
   static Future<AppState> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -58,10 +69,14 @@ class AppState extends ChangeNotifier {
         jsonDecode(st) as Map<String, dynamic>,
       );
     }
+    final ack = prefs.getString(_kLastAck);
+    if (ack != null) s.lastAckAt = DateTime.parse(ack);
+    s.privacySeen = prefs.getBool(_kPrivacySeen) ?? false;
     clock
       ..addListener(s._onTick)
       ..start();
     s._save();
+    unawaited(s.notifier.init().then((_) => s._notify()));
     return s;
   }
 
@@ -89,13 +104,52 @@ class AppState extends ChangeNotifier {
   void setSpeed(int s) {
     clock.setSpeed(s);
     _prefs.setInt(_kSpeed, s);
+    _prefs.setString(_kSimNow, now.toIso8601String());
+  }
+
+  void markPrivacySeen() {
+    privacySeen = true;
+    _prefs.setBool(_kPrivacySeen, true);
+    notifyListeners();
   }
 
   void addEvent(ActivityType type) {
+    if (deviceOffline) return; // hub offline: event never arrives
     events.add(SensorEvent(type, now));
     engine.onSensorEvent(events, rhythm, settings: settings);
+    _notify();
     _save();
     notifyListeners();
+  }
+
+  bool get deviceOffline => engine.deviceOffline;
+
+  /// "Elektrik/İnternet Kes" toggle.
+  void toggleOffline() {
+    engine.setOffline(!deviceOffline, events, rhythm, settings: settings);
+    _save();
+    notifyListeners();
+  }
+
+  /// Family: "Evde kimse yok" -> freeze alarms via vacation mode.
+  void confirmInactivity() {
+    engine.confirmInactivity();
+    updateSettings(settings.copyWith(paused: true));
+    _save();
+  }
+
+  /// Scenario: kitchen + bedroom motion at once (guest/cleaner).
+  void guestScenario() {
+    if (deviceOffline) toggleOffline();
+    addEvent(ActivityType.motionKitchen);
+    addEvent(ActivityType.motionBedroom);
+  }
+
+  /// Scenario: jump the clock 48 hours with no sensor data.
+  void silence48Scenario() {
+    if (deviceOffline) toggleOffline();
+    setSpeed(1);
+    clock.set(now.add(const Duration(hours: 48, minutes: 1)));
   }
 
   /// Last "İyiyim" time (shown to the family).
@@ -103,7 +157,9 @@ class AppState extends ChangeNotifier {
 
   void acknowledge() {
     lastAckAt = now;
+    _prefs.setString(_kLastAck, now.toIso8601String());
     engine.acknowledge(events, rhythm, settings: settings);
+    _notify();
     _save();
     notifyListeners();
   }
@@ -129,26 +185,113 @@ class AppState extends ChangeNotifier {
     _save();
   }
 
-  /// Demo scenario: no morning events, jump just past the first deadline.
-  void skipMorning() {
+  /// Demo scenario: no morning events, jump [offset] past the first deadline.
+  void skipMorning({Duration offset = const Duration(minutes: 1)}) {
     startToday();
+    _refreshRhythm();
     final deadlines = rhythm.forDay(now).map((e) => e.deadlineOn(now)).toList()
       ..sort();
-    if (deadlines.isNotEmpty) {
-      clock.set(deadlines.first.add(const Duration(minutes: 1)));
-    }
+    if (deadlines.isNotEmpty) clock.set(deadlines.first.add(offset));
     setSpeed(60);
   }
 
-  void _onTick() {
+  bool get demoRunning => demoLabel != null;
+
+  /// Guided demo (~55 s): normal morning, next day the routine is missed,
+  /// then soft check -> family alert -> second contact at 60x.
+  void playDemo() {
+    stopDemo();
+    if (deviceOffline) toggleOffline();
+    _demoStep = 1;
+    demoLabel = '1/5: Normal sabah: çaydanlık, yatak odası, mutfak';
+    startToday();
+    setSpeed(1);
+    void at(int ms, void Function() f) =>
+        _demoTimers.add(Timer(Duration(milliseconds: ms), f));
+    DateTime todayAt(int h, int m) =>
+        dayOf(now).add(Duration(hours: h, minutes: m));
+    at(1500, () {
+      clock.set(todayAt(7, 15));
+      addEvent(ActivityType.kettle);
+    });
+    at(2500, () {
+      clock.set(todayAt(7, 30));
+      addEvent(ActivityType.motionBedroom);
+    });
+    at(6000, () {
+      clock.set(todayAt(9, 0));
+      addEvent(ActivityType.motionKitchen);
+    });
+    at(8000, () {
+      final next = dayOf(now).add(const Duration(days: 1, hours: 6));
+      clock.set(next);
+      skipMorning(offset: const Duration(minutes: -2));
+      final exps = rhythm.forDay(now)
+        ..sort((a, b) => a.endMin.compareTo(b.endMin));
+      final first = exps.firstOrNull;
+      _demoStep = 2;
+      demoLabel =
+          '2/5: Ertesi gün: beklenen ${first?.type.label.toLowerCase() ?? 'hareket'} olmadı';
+      notifyListeners();
+    });
+  }
+
+  void stopDemo() {
+    for (final t in _demoTimers) {
+      t.cancel();
+    }
+    _demoTimers.clear();
+    _demoStep = 0;
+    demoLabel = null;
+    notifyListeners();
+  }
+
+  void _updateDemo() {
+    if (_demoStep < 2) return;
+    switch (engine.state) {
+      case AlertState.softCheck:
+        _demoStep = 3;
+        demoLabel = "3/5: Yaşlıya 'İyi misiniz?' soruldu";
+      case AlertState.familyAlert:
+        _demoStep = 4;
+        demoLabel = '4/5: 15 dk cevap yok, aileye uyarı gitti';
+      case AlertState.secondContactAlert:
+        if (_demoStep != 5) {
+          _demoStep = 5;
+          demoLabel = '5/5: 30 dk daha cevap yok, ikinci kişiye uyarı';
+          _demoTimers.add(
+            Timer(const Duration(seconds: 6), () {
+              setSpeed(1);
+              stopDemo();
+            }),
+          );
+        }
+      case AlertState.normal:
+        if (_demoStep >= 3) stopDemo(); // "İyiyim" ends the demo
+    }
+  }
+
+  void _notify() => notifier.update(engine.state, engine.explanation);
+
+  void _refreshRhythm() {
     final today = dayOf(now);
     if (today != _rhythmDay) {
       rhythm = Rhythm.learn(events, today);
       _rhythmDay = today;
     }
+  }
+
+  void _onTick() {
+    _refreshRhythm();
     final before = engine.state;
     engine.tick(events, rhythm, settings: settings);
-    if (engine.state != before || ++_ticks % 10 == 0) _save();
+    if (engine.state != before) {
+      _notify();
+      _save();
+    } else if (++_ticks % 10 == 0) {
+      _save();
+    }
+    _updateDemo();
     notifyListeners();
   }
 
@@ -163,6 +306,9 @@ class AppState extends ChangeNotifier {
 
   @override
   void dispose() {
+    for (final t in _demoTimers) {
+      t.cancel();
+    }
     clock.dispose();
     super.dispose();
   }

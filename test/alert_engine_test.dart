@@ -15,6 +15,8 @@ List<SensorEvent> history() => [
         ActivityType.kettle,
         DateTime(2026, 10, 26 - n).add(const Duration(hours: 7, minutes: 30)),
       ),
+  // Sunday evening activity, so Monday is not a 48 h silence.
+  SensorEvent(ActivityType.motionBedroom, DateTime(2026, 10, 25, 21)),
 ];
 
 void main() {
@@ -94,6 +96,9 @@ void main() {
   test('long silence triggers soft_check', () {
     // Weekend has no learned expectations in this history.
     final saturday = DateTime(2026, 10, 31);
+    events.add(
+      SensorEvent(ActivityType.motionBedroom, DateTime(2026, 10, 30, 22)),
+    );
     clock.current = saturday.add(const Duration(hours: 9, minutes: 59));
     engine.tick(events, rhythm);
     expect(engine.state, AlertState.normal);
@@ -170,6 +175,83 @@ void main() {
       expect(engine.state, AlertState.softCheck);
       tickAt(tuesday.add(const Duration(hours: 6, minutes: 15)));
       expect(engine.state, AlertState.familyAlert);
+    });
+  });
+
+  group('phase 3', () {
+    test('kitchen + bedroom within 3 s -> guest day, alerts suppressed', () {
+      final real = FakeClock(DateTime(2026, 1, 1, 12));
+      engine = AlertEngine(clock, realClock: real);
+      clock.current = monday.add(const Duration(hours: 7));
+      events.add(SensorEvent(ActivityType.motionKitchen, clock.now()));
+      engine.onSensorEvent(events, rhythm);
+      real.advance(const Duration(seconds: 2));
+      events.add(SensorEvent(ActivityType.motionBedroom, clock.now()));
+      engine.onSensorEvent(events, rhythm);
+      expect(engine.isGuestDay, isTrue);
+      at(9, 0); // kettle missed, but guest day
+      expect(engine.state, AlertState.normal);
+      clock.current = monday.add(const Duration(days: 1, hours: 1));
+      expect(engine.isGuestDay, isFalse); // resets next day
+    });
+
+    test('motions more than 3 s apart are not a guest day', () {
+      final real = FakeClock(DateTime(2026, 1, 1, 12));
+      engine = AlertEngine(clock, realClock: real);
+      events.add(SensorEvent(ActivityType.motionKitchen, clock.now()));
+      engine.onSensorEvent(events, rhythm);
+      real.advance(const Duration(seconds: 4));
+      events.add(SensorEvent(ActivityType.motionBedroom, clock.now()));
+      engine.onSensorEvent(events, rhythm);
+      expect(engine.isGuestDay, isFalse);
+    });
+
+    test('48 h without data -> ask family once, then freeze', () {
+      // Last event: Sunday 21:00.
+      clock.current = DateTime(2026, 10, 27, 21, 1);
+      engine.tick(events, rhythm);
+      expect(engine.inactivity, Inactivity.asking);
+      expect(engine.state, AlertState.normal);
+      clock.advance(const Duration(hours: 5));
+      engine.tick(events, rhythm);
+      expect(engine.state, AlertState.normal);
+      engine.confirmInactivity();
+      expect(engine.inactivity, Inactivity.frozen);
+      const paused = MonitorSettings(paused: true);
+      clock.advance(const Duration(days: 3));
+      engine.tick(events, rhythm, settings: paused);
+      expect(engine.state, AlertState.normal);
+      expect(engine.inactivity, Inactivity.frozen);
+      // Family turns the freeze off.
+      engine.tick(events, rhythm);
+      expect(engine.inactivity, Inactivity.none);
+    });
+
+    test('new sensor event ends the inactivity question', () {
+      clock.current = DateTime(2026, 10, 27, 21, 1);
+      engine.tick(events, rhythm);
+      expect(engine.inactivity, Inactivity.asking);
+      events.add(SensorEvent(ActivityType.door, clock.now()));
+      engine.onSensorEvent(events, rhythm);
+      expect(engine.inactivity, Inactivity.none);
+    });
+
+    test('offline hub does not trigger or escalate', () {
+      at(8, 0);
+      engine.setOffline(true, events, rhythm);
+      at(9, 30);
+      expect(engine.state, AlertState.normal);
+      engine.setOffline(false, events, rhythm);
+      at(9, 31);
+      expect(engine.state, AlertState.normal);
+    });
+
+    test('offline freezes a running stage', () {
+      at(8, 20);
+      expect(engine.state, AlertState.softCheck);
+      engine.setOffline(true, events, rhythm);
+      at(10, 0);
+      expect(engine.state, AlertState.softCheck);
     });
   });
 }

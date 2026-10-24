@@ -7,6 +7,8 @@ class MonitorSettings {
     this.endHour = 23,
     this.paused = false,
     this.secondContactName = '',
+    this.familyPhone = '',
+    this.secondContactPhone = '',
   });
 
   /// No limits: monitor all day (start == end).
@@ -16,6 +18,8 @@ class MonitorSettings {
   final int endHour;
   final bool paused; // visitor / vacation mode
   final String secondContactName;
+  final String familyPhone;
+  final String secondContactPhone;
 
   bool isMonitoring(DateTime t) {
     if (startHour == endHour) return true;
@@ -38,11 +42,15 @@ class MonitorSettings {
     int? endHour,
     bool? paused,
     String? secondContactName,
+    String? familyPhone,
+    String? secondContactPhone,
   }) => MonitorSettings(
     startHour: startHour ?? this.startHour,
     endHour: endHour ?? this.endHour,
     paused: paused ?? this.paused,
     secondContactName: secondContactName ?? this.secondContactName,
+    familyPhone: familyPhone ?? this.familyPhone,
+    secondContactPhone: secondContactPhone ?? this.secondContactPhone,
   );
 
   Map<String, dynamic> toJson() => {
@@ -50,6 +58,8 @@ class MonitorSettings {
     'endHour': endHour,
     'paused': paused,
     'secondContactName': secondContactName,
+    'familyPhone': familyPhone,
+    'secondContactPhone': secondContactPhone,
   };
 
   factory MonitorSettings.fromJson(Map<String, dynamic> j) => MonitorSettings(
@@ -57,6 +67,8 @@ class MonitorSettings {
     endHour: j['endHour'] as int,
     paused: j['paused'] as bool,
     secondContactName: j['secondContactName'] as String,
+    familyPhone: (j['familyPhone'] as String?) ?? '',
+    secondContactPhone: (j['secondContactPhone'] as String?) ?? '',
   );
 }
 

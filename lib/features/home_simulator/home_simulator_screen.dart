@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/alert_engine.dart';
 import '../../core/app_state.dart';
 import '../../core/clock.dart';
 import '../../core/models.dart';
@@ -26,6 +28,40 @@ class HomeSimulatorScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 48),
         children: [
+          if (s.demoRunning)
+            Card(
+              color: Theme.of(context).colorScheme.primaryContainer,
+              child: ListTile(
+                leading: const Icon(Icons.play_circle),
+                title: Text(
+                  s.demoLabel!,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                trailing: IconButton(
+                  icon: const Icon(Icons.stop),
+                  tooltip: 'Demoyu durdur',
+                  onPressed: s.stopDemo,
+                ),
+              ),
+            ),
+          if (s.deviceOffline)
+            const _StatusChip(
+              color: Colors.blueGrey,
+              icon: Icons.power_off,
+              text: 'Merkez cihaz çevrimdışı: sensör olayları alınmıyor',
+            ),
+          if (s.engine.isGuestDay)
+            const _StatusChip(
+              color: Colors.blue,
+              icon: Icons.groups,
+              text: 'Çoklu Kişi Algılandı: bugün uyarılar susturuldu',
+            ),
+          if (s.engine.inactivity != Inactivity.none)
+            const _StatusChip(
+              color: Colors.grey,
+              icon: Icons.luggage,
+              text: 'Uzun Süreli Hareketsizlik (Tatil/Hastane)',
+            ),
           if (s.alertState != AlertState.normal) const _CheckInCard(),
           Card(
             child: Padding(
@@ -64,7 +100,7 @@ class HomeSimulatorScreen extends StatelessWidget {
             children: [
               for (final (type, icon, label) in _eventButtons)
                 FilledButton.tonal(
-                  onPressed: () => s.addEvent(type),
+                  onPressed: s.deviceOffline ? null : () => s.addEvent(type),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -100,6 +136,48 @@ class HomeSimulatorScreen extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            icon: Icon(s.deviceOffline ? Icons.power : Icons.power_off),
+            label: Text(
+              s.deviceOffline
+                  ? 'Elektrik/İnternet Geri Ver'
+                  : 'Elektrik/İnternet Kes',
+            ),
+            onPressed: s.toggleOffline,
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.groups),
+                  label: const Text('Misafir senaryosu'),
+                  onPressed: s.guestScenario,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.hourglass_bottom),
+                  label: const Text('48 saat sessizlik'),
+                  onPressed: s.silence48Scenario,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 56,
+            child: FilledButton.icon(
+              icon: Icon(s.demoRunning ? Icons.stop : Icons.play_arrow),
+              label: Text(
+                s.demoRunning ? 'Demoyu durdur' : 'Demo senaryosunu oynat',
+                style: const TextStyle(fontSize: 18),
+              ),
+              onPressed: s.demoRunning ? s.stopDemo : s.playDemo,
+            ),
+          ),
           const SizedBox(height: 16),
           Text(
             'Bugünkü olaylar',
@@ -118,9 +196,45 @@ class HomeSimulatorScreen extends StatelessWidget {
   }
 }
 
+// No person-name setting yet; demo default.
+const personName = 'Ayşe Hanım';
+
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({
+    required this.color,
+    required this.icon,
+    required this.text,
+  });
+
+  final Color color;
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    color: color.withValues(alpha: 0.15),
+    child: ListTile(
+      leading: Icon(icon, color: color),
+      title: Text(text, style: const TextStyle(fontWeight: FontWeight.w600)),
+    ),
+  );
+}
+
 /// The gentle "İyi misiniz?" question with one big button.
-class _CheckInCard extends StatelessWidget {
+class _CheckInCard extends StatefulWidget {
   const _CheckInCard();
+
+  @override
+  State<_CheckInCard> createState() => _CheckInCardState();
+}
+
+class _CheckInCardState extends State<_CheckInCard> {
+  @override
+  void initState() {
+    super.initState();
+    HapticFeedback.heavyImpact();
+    HapticFeedback.vibrate();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -131,6 +245,40 @@ class _CheckInCard extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
+            if (s.alertState == AlertState.softCheck) ...[
+              // Asked by the central device speaker, not the phone.
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange, width: 2),
+                ),
+                child: const Text(
+                  '🔊 Merkez Cihaz Hoparlörü: $personName iyi misiniz?',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 90,
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.green.shade800,
+                  ),
+                  icon: const Icon(Icons.radio_button_checked, size: 32),
+                  onPressed: s.acknowledge,
+                  label: const Text(
+                    'Cihazın Üzerindeki Fiziksel Tuşa Bas (İyiyim)',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 20),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             const Text(
               'İyi misiniz?',
               style: TextStyle(fontSize: 34, fontWeight: FontWeight.bold),

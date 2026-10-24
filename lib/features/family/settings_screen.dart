@@ -17,8 +17,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     text: context.read<AppState>().settings.secondContactName,
   );
 
+  late final _phoneCtrl = TextEditingController(
+    text: context.read<AppState>().settings.secondContactPhone,
+  );
+  late final _familyPhoneCtrl = TextEditingController(
+    text: context.read<AppState>().settings.familyPhone,
+  );
+
   @override
   void dispose() {
+    _phoneCtrl.dispose();
+    _familyPhoneCtrl.dispose();
     _nameCtrl.dispose();
     super.dispose();
   }
@@ -83,6 +92,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             onChanged: (v) =>
                 s.updateSettings(st.copyWith(secondContactName: v.trim())),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _phoneCtrl,
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(
+              labelText: 'İkinci kişinin telefonu',
+              prefixIcon: Icon(Icons.phone),
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (v) =>
+                s.updateSettings(st.copyWith(secondContactPhone: v.trim())),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _familyPhoneCtrl,
+            keyboardType: TextInputType.phone,
+            decoration: const InputDecoration(
+              labelText: 'Yaşlı yakınınızın telefonu',
+              helperText: 'Uyarıda tek dokunuşla aranır.',
+              prefixIcon: Icon(Icons.phone_in_talk),
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (v) =>
+                s.updateSettings(st.copyWith(familyPhone: v.trim())),
           ),
         ],
       ),

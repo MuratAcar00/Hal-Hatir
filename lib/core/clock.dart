@@ -7,6 +7,14 @@ abstract class Clock {
   DateTime now();
 }
 
+/// Wall clock (used for real-time gestures like the 3 s guest rule).
+class SystemClock implements Clock {
+  const SystemClock();
+
+  @override
+  DateTime now() => DateTime.now();
+}
+
 /// Manually driven clock for tests.
 class FakeClock implements Clock {
   FakeClock(this.current);

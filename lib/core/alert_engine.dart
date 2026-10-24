@@ -11,10 +11,24 @@ class _Trigger {
 
 /// normal -> soft_check -> family_alert -> second_contact_alert.
 /// "İyiyim" or any new sensor event returns to normal.
+/// Long inactivity (48 h): ask the family once, then freeze alarms.
+enum Inactivity { none, asking, frozen }
+
 class AlertEngine {
-  AlertEngine(this.clock);
+  AlertEngine(this.clock, {this.realClock = const SystemClock()});
 
   final Clock clock;
+  // Real time, for the "two rooms within 3 s" guest rule.
+  final Clock realClock;
+  static const guestWindow = Duration(seconds: 3);
+  static const inactivityLimit = Duration(hours: 48);
+
+  // Central hub offline: no events arrive, nothing triggers or escalates.
+  bool deviceOffline = false;
+  // dayKey of a day with several people at home: alerts suppressed.
+  String? guestDay;
+  Inactivity inactivity = Inactivity.none;
+  final Map<ActivityType, DateTime> _lastMotionReal = {};
 
   static const softCheckTimeout = Duration(minutes: 15);
   static const familyTimeout = Duration(minutes: 30);
@@ -44,8 +58,21 @@ class AlertEngine {
       if (state != AlertState.normal) _reset(events, rhythm, settings);
       return;
     }
+    if (inactivity == Inactivity.frozen) {
+      // Family turned the freeze (pause) off.
+      inactivity = Inactivity.none;
+      lastReset = now;
+    }
+    if (deviceOffline || inactivity == Inactivity.asking) return;
+    if (now.difference(_lastActivity(now, events)) >= inactivityLimit) {
+      current?.resolvedAt = now;
+      _clearState();
+      inactivity = Inactivity.asking;
+      return;
+    }
     if (state == AlertState.normal) {
       if (!settings.isMonitoring(now)) return;
+      if (isGuestDay) return;
       final due = _dueTriggers(now, events, rhythm, settings);
       if (due.isEmpty) return;
       explanation = due.first.explanation;
@@ -79,13 +106,71 @@ class AlertEngine {
     Rhythm rhythm, {
     MonitorSettings settings = MonitorSettings.allDay,
   }) {
+    if (inactivity == Inactivity.asking) inactivity = Inactivity.none;
+    final e = events.isEmpty ? null : events.last;
+    if (e != null &&
+        (e.type == ActivityType.motionKitchen ||
+            e.type == ActivityType.motionBedroom)) {
+      final real = realClock.now();
+      final other = e.type == ActivityType.motionKitchen
+          ? ActivityType.motionBedroom
+          : ActivityType.motionKitchen;
+      final o = _lastMotionReal[other];
+      if (o != null && real.difference(o).abs() <= guestWindow) {
+        guestDay = dayKey(clock.now());
+      }
+      _lastMotionReal[e.type] = real;
+    }
     if (state != AlertState.normal) _reset(events, rhythm, settings);
+  }
+
+  bool get isGuestDay => guestDay == dayKey(clock.now());
+
+  /// Hub power/internet cut or restored. Deviations missed while offline
+  /// are not alerted; a running stage restarts its timer.
+  void setOffline(
+    bool offline,
+    List<SensorEvent> events,
+    Rhythm rhythm, {
+    MonitorSettings settings = MonitorSettings.allDay,
+  }) {
+    if (offline == deviceOffline) return;
+    deviceOffline = offline;
+    if (offline) return;
+    final now = clock.now();
+    handled.addAll(
+      _dueTriggers(now, events, rhythm, settings).map((t) => t.key),
+    );
+    lastReset = now;
+    if (state != AlertState.normal) stateSince = now;
+  }
+
+  /// Family confirmed nobody is home: freeze alarms (caller sets pause).
+  void confirmInactivity() {
+    if (inactivity == Inactivity.asking) inactivity = Inactivity.frozen;
+  }
+
+  DateTime _lastActivity(DateTime now, List<SensorEvent> events) {
+    DateTime? last = lastReset;
+    for (final e in events) {
+      if (e.time.isAfter(now)) continue;
+      if (last == null || e.time.isAfter(last)) last = e.time;
+    }
+    return last ?? now;
+  }
+
+  void _clearState() {
+    state = AlertState.normal;
+    stateSince = null;
+    explanation = null;
   }
 
   /// Fresh day: forget today's handled deviations.
   void resetDay(DateTime day) {
     current?.resolvedAt = clock.now();
     handled.removeWhere((k) => k.startsWith(dayKey(day)));
+    guestDay = null;
+    inactivity = Inactivity.none;
     state = AlertState.normal;
     stateSince = null;
     explanation = null;
@@ -168,6 +253,9 @@ class AlertEngine {
     'lastReset': lastReset?.toIso8601String(),
     'handled': handled.toList(),
     'history': history.map((h) => h.toJson()).toList(),
+    'deviceOffline': deviceOffline,
+    'guestDay': guestDay,
+    'inactivity': inactivity.name,
   };
 
   void loadJson(Map<String, dynamic> j) {
@@ -175,6 +263,9 @@ class AlertEngine {
     stateSince = _date(j['stateSince']);
     explanation = j['explanation'] as String?;
     lastReset = _date(j['lastReset']);
+    deviceOffline = j['deviceOffline'] as bool? ?? false;
+    guestDay = j['guestDay'] as String?;
+    inactivity = Inactivity.values.byName(j['inactivity'] as String? ?? 'none');
     handled
       ..clear()
       ..addAll((j['handled'] as List).cast<String>());

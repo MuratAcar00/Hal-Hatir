@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/app_state.dart';
 import '../../core/models.dart';
 import '../../core/ui/app_scaffold.dart';
+import '../../core/alert_engine.dart';
 import 'alert_history.dart';
+import 'health_trends.dart';
 import 'settings_screen.dart';
 import 'weekly_chart.dart';
 
@@ -70,6 +73,7 @@ class FamilyScreen extends StatelessWidget {
               ),
             ),
           ),
+          const HealthTrendsCard(),
           const WeeklySummary(),
           const AlertHistoryList(),
         ],
@@ -78,12 +82,120 @@ class FamilyScreen extends StatelessWidget {
   }
 }
 
+class _ModeCard extends StatelessWidget {
+  const _ModeCard({
+    required this.color,
+    required this.icon,
+    required this.title,
+    required this.detail,
+    this.action,
+  });
+
+  final Color color;
+  final IconData icon;
+  final String title;
+  final String detail;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    color: color,
+    child: Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: Colors.white, size: 32),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            detail,
+            style: const TextStyle(fontSize: 16, color: Colors.white),
+          ),
+          if (action != null) ...[
+            const SizedBox(height: 12),
+            Theme(
+              data: Theme.of(context).copyWith(
+                colorScheme: Theme.of(context).colorScheme
+                    .copyWith(primary: Colors.white, onPrimary: color),
+              ),
+              child: action!,
+            ),
+          ],
+        ],
+      ),
+    ),
+  );
+}
+
 class _StatusCard extends StatelessWidget {
   const _StatusCard();
 
   @override
   Widget build(BuildContext context) {
     final s = context.watch<AppState>();
+    // Hardware / mode states look different from the red health alert.
+    if (s.deviceOffline) {
+      return const _ModeCard(
+        color: Color(0xFF8D8D6E),
+        icon: Icons.power_off,
+        title: 'Merkez Cihaz: Çevrimdışı (Elektrik kesintisi olabilir)',
+        detail:
+            'Sensör verisi alınamıyor. Bu bir sağlık uyarısı değildir; '
+            'bağlantı gelince izleme devam eder.',
+      );
+    }
+    if (s.engine.inactivity == Inactivity.asking) {
+      return _ModeCard(
+        color: Colors.blueGrey,
+        icon: Icons.luggage,
+        title: 'Uzun Süreli Hareketsizlik (Tatil/Hastane)',
+        detail:
+            '48 saattir hiç sensör verisi yok. Evde kimse yok mu? '
+            'Tatilde mi / hastanede mi?',
+        action: FilledButton.icon(
+          icon: const Icon(Icons.check),
+          label: const Text('Evet, evde kimse yok: alarmları dondur'),
+          onPressed: s.confirmInactivity,
+        ),
+      );
+    }
+    if (s.engine.inactivity == Inactivity.frozen) {
+      return _ModeCard(
+        color: Colors.grey,
+        icon: Icons.ac_unit,
+        title: 'Alarmlar donduruldu (Tatil/Hastane)',
+        detail: 'Yeni bir sensör olayı gelince izleme kendiliğinden başlar.',
+        action: OutlinedButton(
+          onPressed: () => s.updateSettings(s.settings.copyWith(paused: false)),
+          child: const Text('Dondurmayı kaldır'),
+        ),
+      );
+    }
+    if (s.alertState == AlertState.normal && s.engine.isGuestDay) {
+      return const _ModeCard(
+        color: Color(0xFF4A78A8),
+        icon: Icons.groups,
+        title: 'Çoklu Kişi Algılandı',
+        detail:
+            'Mutfak ve yatak odasında aynı anda hareket var (misafir/temizlikçi). '
+            'Bugün uyarılar susturuldu; yarın normale döner.',
+      );
+    }
     final (color, title, detail) = switch (s.alertState) {
       AlertState.normal => (
         Colors.green,
@@ -135,6 +247,32 @@ class _StatusCard extends StatelessWidget {
               Text(
                 'Neden uyardı? ${s.engine.explanation}',
                 style: const TextStyle(color: Colors.white),
+              ),
+            ],
+            if (s.alertState == AlertState.familyAlert ||
+                s.alertState == AlertState.secondContactAlert) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _CallButton(
+                    label: 'Yakınımı ara',
+                    phone: s.settings.familyPhone,
+                  ),
+                  if (s.alertState == AlertState.secondContactAlert)
+                    _CallButton(
+                      label: s.settings.secondContactName.isEmpty
+                          ? 'İkinci kişiyi ara'
+                          : '${s.settings.secondContactName} adlı kişiyi ara',
+                      phone: s.settings.secondContactPhone,
+                    ),
+                  _CallButton(
+                    label: "112'yi ara",
+                    phone: '112',
+                    emergency: true,
+                  ),
+                ],
               ),
             ],
           ],
@@ -218,6 +356,48 @@ class _ExpectedVsActual extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Opens the phone dialer. Without a number it explains what is missing.
+class _CallButton extends StatelessWidget {
+  const _CallButton({
+    required this.label,
+    required this.phone,
+    this.emergency = false,
+  });
+
+  final String label;
+  final String phone;
+  final bool emergency;
+
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton.icon(
+      style: FilledButton.styleFrom(
+        backgroundColor: emergency ? Colors.white : Colors.white24,
+        foregroundColor: emergency ? Colors.red.shade900 : Colors.white,
+      ),
+      icon: const Icon(Icons.call),
+      label: Text(label),
+      onPressed: () async {
+        final messenger = ScaffoldMessenger.of(context);
+        if (phone.isEmpty) {
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text('Telefon numarası yok. Ayarlar\'dan ekleyin.'),
+            ),
+          );
+          return;
+        }
+        final ok = await launchUrl(Uri(scheme: 'tel', path: phone));
+        if (!ok) {
+          messenger.showSnackBar(
+            const SnackBar(content: Text('Arama başlatılamadı.')),
+          );
+        }
+      },
     );
   }
 }
