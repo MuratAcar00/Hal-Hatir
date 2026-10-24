@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/app_state.dart';
 import '../../core/models.dart';
@@ -8,6 +7,8 @@ import '../../core/ui/app_colors.dart';
 import '../../core/ui/app_scaffold.dart';
 import '../../core/ui/section_card.dart';
 import '../../core/alert_engine.dart';
+import '../home_simulator/home_simulator_screen.dart' show personName;
+import 'contact_dialogs.dart';
 import 'alert_history.dart';
 import 'health_trends.dart';
 import 'settings_screen.dart';
@@ -281,6 +282,7 @@ class StatusCard extends StatelessWidget {
                 children: [
                   _CallButton(
                     label: 'Yakınımı ara',
+                    name: personName,
                     phone: s.settings.familyPhone,
                   ),
                   if (s.alertState == AlertState.secondContactAlert)
@@ -288,10 +290,14 @@ class StatusCard extends StatelessWidget {
                       label: s.settings.secondContactName.isEmpty
                           ? 'İkinci kişiyi ara'
                           : '${s.settings.secondContactName} adlı kişiyi ara',
+                      name: s.settings.secondContactName.isEmpty
+                          ? 'İkinci kişi'
+                          : s.settings.secondContactName,
                       phone: s.settings.secondContactPhone,
                     ),
                   _CallButton(
                     label: "112'yi ara",
+                    name: '112 Acil Çağrı Merkezi',
                     phone: '112',
                     emergency: true,
                   ),
@@ -394,15 +400,17 @@ class ExpectedVsActual extends StatelessWidget {
   }
 }
 
-/// Opens the phone dialer. Without a number it explains what is missing.
+/// Opens the call card (demo) with a real "tel:" action for phones.
 class _CallButton extends StatelessWidget {
   const _CallButton({
     required this.label,
+    required this.name,
     required this.phone,
     this.emergency = false,
   });
 
   final String label;
+  final String name;
   final String phone;
   final bool emergency;
 
@@ -415,23 +423,8 @@ class _CallButton extends StatelessWidget {
       ),
       icon: const Icon(Icons.call),
       label: Text(label),
-      onPressed: () async {
-        final messenger = ScaffoldMessenger.of(context);
-        if (phone.isEmpty) {
-          messenger.showSnackBar(
-            const SnackBar(
-              content: Text('Telefon numarası yok. Ayarlar\'dan ekleyin.'),
-            ),
-          );
-          return;
-        }
-        final ok = await launchUrl(Uri(scheme: 'tel', path: phone));
-        if (!ok) {
-          messenger.showSnackBar(
-            const SnackBar(content: Text('Arama başlatılamadı.')),
-          );
-        }
-      },
+      onPressed: () =>
+          showCallDialog(context, name: name, phone: phone, emergency: emergency),
     );
   }
 }

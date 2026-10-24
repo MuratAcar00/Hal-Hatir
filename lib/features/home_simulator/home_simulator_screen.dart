@@ -148,7 +148,7 @@ class HomeSimulatorBody extends StatelessWidget {
               icon: Icons.luggage,
               text: 'Uzun Süreli Hareketsizlik (Tatil/Hastane)',
             ),
-          if (s.alertState != AlertState.normal) const _CheckInCard(),
+          if (s.alertState != AlertState.normal) const CheckInCard(),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -249,28 +249,7 @@ class HomeSimulatorBody extends StatelessWidget {
                 label,
                 s.deviceOffline
                     ? null
-                    : () async {
-                        final messenger = ScaffoldMessenger.of(context);
-                        int? score;
-                        if (kind == MedicalKind.memoryGame) {
-                          score = await showDialog<int>(
-                            context: context,
-                            builder: (_) => const MemoryGameDialog(),
-                          );
-                          if (score == null) return; // closed unfinished
-                        }
-                        s.addMedical(kind, score: score);
-                        messenger.showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              score == null
-                                  ? '$done (simüle)'
-                                  : '$done: skor %$score',
-                            ),
-                            duration: const Duration(seconds: 2),
-                          ),
-                        );
-                      },
+                    : () => runMedicalAction(context, s, kind, done),
               ),
           ]),
           const SizedBox(height: 12),
@@ -355,6 +334,31 @@ class HomeSimulatorBody extends StatelessWidget {
 // No person-name setting yet; demo default.
 const personName = 'Ayşe Hanım';
 
+/// Records a simulated medical reading; the memory game is played first.
+Future<void> runMedicalAction(
+  BuildContext context,
+  AppState s,
+  MedicalKind kind,
+  String done,
+) async {
+  final messenger = ScaffoldMessenger.of(context);
+  int? score;
+  if (kind == MedicalKind.memoryGame) {
+    score = await showDialog<int>(
+      context: context,
+      builder: (_) => const MemoryGameDialog(),
+    );
+    if (score == null) return; // closed unfinished
+  }
+  s.addMedical(kind, score: score);
+  messenger.showSnackBar(
+    SnackBar(
+      content: Text(score == null ? '$done (simüle)' : '$done: skor %$score'),
+      duration: const Duration(seconds: 2),
+    ),
+  );
+}
+
 class _StatusChip extends StatelessWidget {
   const _StatusChip({
     required this.color,
@@ -377,14 +381,14 @@ class _StatusChip extends StatelessWidget {
 }
 
 /// The gentle "İyi misiniz?" question with one big button.
-class _CheckInCard extends StatefulWidget {
-  const _CheckInCard();
+class CheckInCard extends StatefulWidget {
+  const CheckInCard({super.key});
 
   @override
-  State<_CheckInCard> createState() => _CheckInCardState();
+  State<CheckInCard> createState() => CheckInCardState();
 }
 
-class _CheckInCardState extends State<_CheckInCard> {
+class CheckInCardState extends State<CheckInCard> {
   @override
   void initState() {
     super.initState();

@@ -6,6 +6,8 @@ import '../../core/models.dart';
 import '../../core/ui/app_colors.dart';
 import '../../core/ui/hover_card.dart';
 import '../family/alert_history.dart';
+import '../family/contact_dialogs.dart';
+import '../home_simulator/home_simulator_screen.dart' show personName;
 import '../family/family_screen.dart';
 import 'activity_rhythm_chart.dart';
 import 'dashboard_widgets.dart';
@@ -36,7 +38,39 @@ class OverviewPage extends StatelessWidget {
       children: [
         const AlertBanner(),
         const StatusCard(),
-        const SizedBox(height: 8),
+        const SizedBox(height: 4),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            FilledButton.tonalIcon(
+              icon: const Icon(Icons.call),
+              label: Text("$personName'ı ara"),
+              onPressed: () => showCallDialog(
+                context,
+                name: personName,
+                phone: s.settings.familyPhone,
+              ),
+            ),
+            FilledButton.tonalIcon(
+              icon: const Icon(Icons.chat_bubble_outline),
+              label: const Text('Mesaj gönder'),
+              onPressed: () => showMessageDialog(context),
+            ),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.contact_phone_outlined),
+              label: const Text('İkinci kişiyi ara'),
+              onPressed: () => showCallDialog(
+                context,
+                name: s.settings.secondContactName.isEmpty
+                    ? 'İkinci kişi'
+                    : s.settings.secondContactName,
+                phone: s.settings.secondContactPhone,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
         ResponsiveGrid(
           children: [
             MetricCard(

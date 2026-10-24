@@ -10,20 +10,38 @@ import '../family/alert_history.dart';
 import '../family/settings_screen.dart';
 import '../home_simulator/home_simulator_screen.dart';
 import 'devices.dart';
+import 'elder_view.dart';
 import 'health_page.dart';
+import 'notes_page.dart';
 import 'overview_page.dart';
+import 'report_page.dart';
 import 'skeleton.dart';
 
 enum DashPage {
   overview('Genel Bakış', Icons.dashboard_outlined, Icons.dashboard),
   health('Sağlık Trendleri', Icons.monitor_heart_outlined, Icons.monitor_heart),
   devices('Cihaz Durumları', Icons.sensors_outlined, Icons.sensors),
+  report('Haftalık Rapor', Icons.assessment_outlined, Icons.assessment),
+  notes('Notlar', Icons.sticky_note_2_outlined, Icons.sticky_note_2),
   settings('Ayarlar', Icons.settings_outlined, Icons.settings);
 
   const DashPage(this.label, this.icon, this.activeIcon);
   final String label;
   final IconData icon;
   final IconData activeIcon;
+}
+
+/// Demo view: who is looking at the panel.
+enum ViewRole {
+  family('Aile', 'Aile Üyesi', 'Birincil yakın', Icons.family_restroom),
+  caregiver('Bakıcı', 'Bakıcı', 'Bakım desteği', Icons.volunteer_activism),
+  elder('Yaşlı', personName, 'Evdeki kullanıcı', Icons.elderly);
+
+  const ViewRole(this.label, this.person, this.sub, this.icon);
+  final String label;
+  final String person;
+  final String sub;
+  final IconData icon;
 }
 
 /// Wide-screen web dashboard: sidebar, header, page, simulator side panel.
@@ -37,7 +55,15 @@ class DashboardShell extends StatefulWidget {
 class _DashboardShellState extends State<DashboardShell> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   DashPage _page = DashPage.overview;
+  ViewRole _role = ViewRole.family;
   bool _first = true;
+
+  List<DashPage> get _pages => _role == ViewRole.caregiver
+      ? [
+          for (final p in DashPage.values)
+            if (p != DashPage.settings) p,
+        ]
+      : DashPage.values;
 
   void _select(DashPage p) {
     if (p == _page) return;
@@ -47,10 +73,21 @@ class _DashboardShellState extends State<DashboardShell> {
     });
   }
 
+  void _setRole(ViewRole r) {
+    if (r == _role) return;
+    setState(() {
+      _role = r;
+      _first = false;
+      if (!_pages.contains(_page)) _page = DashPage.overview;
+    });
+  }
+
   Widget _content() => switch (_page) {
     DashPage.overview => const OverviewPage(),
     DashPage.health => const HealthPage(),
     DashPage.devices => const DevicesPage(),
+    DashPage.report => const ReportPage(),
+    DashPage.notes => NotesPage(author: _role.person),
     DashPage.settings => Align(
       alignment: Alignment.topLeft,
       child: ConstrainedBox(
@@ -63,6 +100,8 @@ class _DashboardShellState extends State<DashboardShell> {
   @override
   Widget build(BuildContext context) {
     final showPanel = MediaQuery.sizeOf(context).width >= 1240;
+    final elder = _role == ViewRole.elder;
+    void openSimulator() => _scaffoldKey.currentState?.openEndDrawer();
     return Scaffold(
       key: _scaffoldKey,
       endDrawer: showPanel
@@ -73,33 +112,62 @@ class _DashboardShellState extends State<DashboardShell> {
           Expanded(
             child: Row(
               children: [
-                _Sidebar(page: _page, onSelect: _select),
+                if (!elder)
+                  _Sidebar(pages: _pages, page: _page, onSelect: _select),
                 Expanded(
                   child: Column(
                     children: [
-                      _Header(
-                        page: _page,
-                        onSimulator: showPanel
-                            ? null
-                            : () => _scaffoldKey.currentState?.openEndDrawer(),
-                        onSettings: () => _select(DashPage.settings),
-                      ),
+                      if (!elder)
+                        _Header(
+                          page: _page,
+                          role: _role,
+                          onRole: _setRole,
+                          onSimulator: showPanel ? null : openSimulator,
+                          onSettings: () => _select(DashPage.settings),
+                        ),
                       Expanded(
                         child: Row(
                           children: [
                             Expanded(
-                              child: SkeletonGate(
-                                key: ValueKey(_page),
-                                delay: Duration(milliseconds: _first ? 1000 : 450),
-                                child: Center(
-                                  child: ConstrainedBox(
-                                    constraints: const BoxConstraints(
-                                      maxWidth: 1400,
+                              child: elder
+                                  ? ElderView(
+                                      trailing: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          if (!showPanel) ...[
+                                            FilledButton.tonalIcon(
+                                              icon: const Icon(
+                                                Icons.home_outlined,
+                                              ),
+                                              label: const Text(
+                                                'Ev Simülatörü',
+                                              ),
+                                              onPressed: openSimulator,
+                                            ),
+                                            const SizedBox(width: 8),
+                                          ],
+                                          RoleMenu(
+                                            role: _role,
+                                            onRole: _setRole,
+                                            child: _RolePill(role: _role),
+                                          ),
+                                        ],
+                                      ),
+                                    )
+                                  : SkeletonGate(
+                                      key: ValueKey('$_page-$_role'),
+                                      delay: Duration(
+                                        milliseconds: _first ? 1000 : 450,
+                                      ),
+                                      child: Center(
+                                        child: ConstrainedBox(
+                                          constraints: const BoxConstraints(
+                                            maxWidth: 1400,
+                                          ),
+                                          child: _content(),
+                                        ),
+                                      ),
                                     ),
-                                    child: _content(),
-                                  ),
-                                ),
-                              ),
                             ),
                             if (showPanel) ...[
                               const VerticalDivider(width: 1),
@@ -116,6 +184,80 @@ class _DashboardShellState extends State<DashboardShell> {
           ),
           const Divider(height: 1),
           const SafetyFooter(),
+        ],
+      ),
+    );
+  }
+}
+
+/// Role switcher popup (Aile / Bakıcı / Yaşlı), optional "Ayarlar" entry.
+class RoleMenu extends StatelessWidget {
+  const RoleMenu({
+    super.key,
+    required this.role,
+    required this.onRole,
+    required this.child,
+    this.onSettings,
+  });
+
+  final ViewRole role;
+  final ValueChanged<ViewRole> onRole;
+  final VoidCallback? onSettings;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      tooltip: 'Görünümü değiştir',
+      offset: const Offset(0, 48),
+      onSelected: (v) {
+        if (v == 'settings') {
+          onSettings?.call();
+        } else {
+          onRole(ViewRole.values.byName(v));
+        }
+      },
+      itemBuilder: (_) => <PopupMenuEntry<String>>[
+        const PopupMenuItem<String>(enabled: false, child: Text('Görünüm')),
+        for (final r in ViewRole.values)
+          CheckedPopupMenuItem<String>(
+            value: r.name,
+            checked: r == role,
+            child: Text(r.label),
+          ),
+        if (onSettings != null) ...[
+          const PopupMenuDivider(),
+          const PopupMenuItem<String>(value: 'settings', child: Text('Ayarlar')),
+        ],
+      ],
+      child: child,
+    );
+  }
+}
+
+class _RolePill extends StatelessWidget {
+  const _RolePill({required this.role});
+
+  final ViewRole role;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: _line(context)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(role.icon, size: 18, color: context.sc.primary),
+          const SizedBox(width: 8),
+          Text(
+            'Görünüm: ${role.label}',
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          const Icon(Icons.expand_more, size: 18),
         ],
       ),
     );
@@ -160,8 +302,13 @@ Color _line(BuildContext context) =>
     AppColors.border(Theme.of(context).brightness);
 
 class _Sidebar extends StatelessWidget {
-  const _Sidebar({required this.page, required this.onSelect});
+  const _Sidebar({
+    required this.pages,
+    required this.page,
+    required this.onSelect,
+  });
 
+  final List<DashPage> pages;
   final DashPage page;
   final ValueChanged<DashPage> onSelect;
 
@@ -218,7 +365,7 @@ class _Sidebar extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               children: [
-                for (final p in DashPage.values)
+                for (final p in pages)
                   _NavItem(
                     page: p,
                     active: p == page,
@@ -364,11 +511,15 @@ class _NavItemState extends State<_NavItem> {
 class _Header extends StatelessWidget {
   const _Header({
     required this.page,
+    required this.role,
+    required this.onRole,
     required this.onSimulator,
     required this.onSettings,
   });
 
   final DashPage page;
+  final ViewRole role;
+  final ValueChanged<ViewRole> onRole;
   final VoidCallback? onSimulator;
   final VoidCallback onSettings;
 
@@ -448,15 +599,10 @@ class _Header extends StatelessWidget {
             ],
           ),
           const SizedBox(width: 4),
-          PopupMenuButton<String>(
-            tooltip: 'Profil',
-            offset: const Offset(0, 48),
-            onSelected: (v) {
-              if (v == 'settings') onSettings();
-            },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'settings', child: Text('Ayarlar')),
-            ],
+          RoleMenu(
+            role: role,
+            onRole: onRole,
+            onSettings: role == ViewRole.family ? onSettings : null,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
               child: Row(
@@ -473,23 +619,24 @@ class _Header extends StatelessWidget {
                         ],
                       ),
                     ),
-                    child: const Icon(Icons.person_rounded, color: Colors.white),
+                    child: Icon(role.icon, color: Colors.white, size: 22),
                   ),
                   const SizedBox(width: 10),
-                  const Column(
+                  Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Aile Üyesi',
-                        style: TextStyle(
+                        role.person,
+                        style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      Text('Birincil yakın', style: TextStyle(fontSize: 11)),
+                      Text(role.sub, style: const TextStyle(fontSize: 11)),
                     ],
                   ),
+                  const Icon(Icons.expand_more, size: 18),
                 ],
               ),
             ),

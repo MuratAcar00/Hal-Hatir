@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'alert_engine.dart';
 import 'clock.dart';
 import 'medical.dart';
+import 'notes.dart';
 import 'models.dart';
 import 'notifier.dart';
 import 'rhythm.dart';
@@ -31,6 +32,7 @@ class AppState extends ChangeNotifier {
   static const _kLastAck = 'lastAckAt';
   static const _kPrivacySeen = 'privacySeen';
   static const _kMedical = 'medical';
+  static const _kNotes = 'notes';
 
   final SharedPreferences _prefs;
   final SimClock clock;
@@ -81,6 +83,12 @@ class AppState extends ChangeNotifier {
     final ack = prefs.getString(_kLastAck);
     if (ack != null) s.lastAckAt = DateTime.parse(ack);
     s.privacySeen = prefs.getBool(_kPrivacySeen) ?? false;
+    final notesRaw = prefs.getString(_kNotes);
+    s.notes = notesRaw != null
+        ? (jsonDecode(notesRaw) as List)
+              .map((e) => FamilyNote.fromJson(e as Map<String, dynamic>))
+              .toList()
+        : seedNotes(start);
     clock
       ..addListener(s._onTick)
       ..start();
@@ -132,6 +140,31 @@ class AppState extends ChangeNotifier {
   }
 
   bool get deviceOffline => engine.deviceOffline;
+
+  /// Care notes (family / caregiver).
+  List<FamilyNote> notes = [];
+
+  void addNote(String text, String author) {
+    notes.add(FamilyNote(text, now, author));
+    _save();
+    notifyListeners();
+  }
+
+  void deleteNote(FamilyNote n) {
+    notes.remove(n);
+    _save();
+    notifyListeners();
+  }
+
+  /// Last message from the family, shown on the elderly view (not saved).
+  String? familyMessage;
+  DateTime? familyMessageAt;
+
+  void sendFamilyMessage(String text) {
+    familyMessage = text;
+    familyMessageAt = now;
+    notifyListeners();
+  }
 
   /// Simulated medical device reading (hub must be online).
   void addMedical(MedicalKind kind, {int? score}) {
@@ -344,6 +377,10 @@ class AppState extends ChangeNotifier {
     _prefs.setString(
       _kMedical,
       jsonEncode(medical.map((e) => e.toJson()).toList()),
+    );
+    _prefs.setString(
+      _kNotes,
+      jsonEncode(notes.map((e) => e.toJson()).toList()),
     );
     _prefs.setString(_kSimNow, now.toIso8601String());
   }
