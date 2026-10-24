@@ -5,10 +5,12 @@ import 'package:provider/provider.dart';
 import '../../core/alert_engine.dart';
 import '../../core/app_state.dart';
 import '../../core/clock.dart';
+import '../../core/medical.dart';
 import '../../core/models.dart';
 import '../../core/ui/app_colors.dart';
 import '../../core/ui/app_scaffold.dart';
 import '../../core/ui/hover_card.dart';
+import 'memory_game.dart';
 
 class HomeSimulatorScreen extends StatelessWidget {
   const HomeSimulatorScreen({super.key});
@@ -32,6 +34,77 @@ class HomeSimulatorBody extends StatelessWidget {
     (ActivityType.couch, Icons.weekend_outlined, 'Koltuk/TV Sensörü'),
     (ActivityType.medicine, Icons.medical_services_outlined, 'İlaç Kutusu'),
   ];
+
+  static const _medicalButtons = [
+    (
+      MedicalKind.bloodPressure,
+      Icons.monitor_heart,
+      'Tansiyonu Ölç',
+      'Tansiyon ölçümü kaydedildi',
+    ),
+    (
+      MedicalKind.glucose,
+      Icons.water_drop,
+      'Kan Şekerini Ölç',
+      'Kan şekeri ölçümü kaydedildi',
+    ),
+    (
+      MedicalKind.memoryGame,
+      Icons.psychology,
+      'Hafıza Oyununu Oyna',
+      'Hafıza oyunu tamamlandı',
+    ),
+  ];
+
+  Widget _grid(List<Widget> children) => GridView.count(
+    crossAxisCount: 2,
+    shrinkWrap: true,
+    physics: const NeverScrollableScrollPhysics(),
+    mainAxisSpacing: 10,
+    crossAxisSpacing: 10,
+    childAspectRatio: 1.9,
+    children: children,
+  );
+
+  Widget _tile(
+    BuildContext context,
+    IconData icon,
+    String label,
+    VoidCallback? onPressed,
+  ) => HoverLift(
+    radius: 14,
+    shadow: false,
+    child: FilledButton.tonal(
+      style: FilledButton.styleFrom(
+        backgroundColor: context.sc.primary.withValues(alpha: 0.08),
+        foregroundColor: context.sc.primary,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: context.sc.primary.withValues(alpha: 0.25)),
+        ),
+      ),
+      onPressed: onPressed,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 24),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            maxLines: 2,
+            textAlign: TextAlign.center,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              height: 1.15,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -147,55 +220,59 @@ class HomeSimulatorBody extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 10,
-            crossAxisSpacing: 10,
-            childAspectRatio: 1.9,
-            children: [
-              for (final (type, icon, label) in _eventButtons)
-                HoverLift(
-                  radius: 14,
-                  shadow: false,
-                  child: FilledButton.tonal(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: context.sc.primary.withValues(
-                        alpha: 0.08,
-                      ),
-                      foregroundColor: context.sc.primary,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        side: BorderSide(
-                          color: context.sc.primary.withValues(alpha: 0.25),
-                        ),
-                      ),
-                    ),
-                    onPressed: s.deviceOffline ? null : () => s.addEvent(type),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(icon, size: 24),
-                        const SizedBox(height: 6),
-                        Text(
-                          label,
-                          maxLines: 2,
-                          textAlign: TextAlign.center,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
-                            height: 1.15,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
+          _grid([
+            for (final (type, icon, label) in _eventButtons)
+              _tile(
+                context,
+                icon,
+                label,
+                s.deviceOffline ? null : () => s.addEvent(type),
+              ),
+          ]),
+          const SizedBox(height: 16),
+          const Divider(height: 1),
+          const SizedBox(height: 14),
+          Text(
+            'Tıbbi ve Bilişsel Aktiviteler',
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              color: context.sc.muted,
+            ),
           ),
+          const SizedBox(height: 8),
+          _grid([
+            for (final (kind, icon, label, done) in _medicalButtons)
+              _tile(
+                context,
+                icon,
+                label,
+                s.deviceOffline
+                    ? null
+                    : () async {
+                        final messenger = ScaffoldMessenger.of(context);
+                        int? score;
+                        if (kind == MedicalKind.memoryGame) {
+                          score = await showDialog<int>(
+                            context: context,
+                            builder: (_) => const MemoryGameDialog(),
+                          );
+                          if (score == null) return; // closed unfinished
+                        }
+                        s.addMedical(kind, score: score);
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              score == null
+                                  ? '$done (simüle)'
+                                  : '$done: skor %$score',
+                            ),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      },
+              ),
+          ]),
           const SizedBox(height: 12),
           Row(
             children: [

@@ -9,12 +9,14 @@ class HoverLift extends StatefulWidget {
     required this.child,
     this.radius = 16,
     this.shadow = true,
+    this.restShadow = 0.03,
     this.onTap,
   });
 
   final Widget child;
   final double radius;
   final bool shadow;
+  final double restShadow;
   final VoidCallback? onTap;
 
   @override
@@ -41,7 +43,7 @@ class _HoverLiftState extends State<HoverLift> {
             boxShadow: widget.shadow
                 ? [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: _hover ? 0.18 : 0.03),
+                      color: Colors.black.withValues(alpha: _hover ? 0.18 : widget.restShadow),
                       blurRadius: _hover ? 26 : 8,
                       offset: Offset(0, _hover ? 12 : 3),
                     ),
@@ -62,17 +64,20 @@ class DashCard extends StatelessWidget {
     required this.child,
     this.padding = const EdgeInsets.all(20),
     this.color,
+    this.restShadow = 0.03,
     this.onTap,
   });
 
   final Widget child;
   final EdgeInsetsGeometry padding;
+  final double restShadow;
   final Color? color;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return HoverLift(
+      restShadow: restShadow,
       onTap: onTap,
       child: Container(
         padding: padding,

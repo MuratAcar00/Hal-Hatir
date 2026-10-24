@@ -196,6 +196,12 @@ class StatusCard extends StatelessWidget {
       );
     }
     final (color, title, detail) = switch (s.alertState) {
+      AlertState.normal when s.medicalWarning => (
+        context.sc.attention,
+        'Dikkat',
+        'Medikal cihazlardan veri alınamıyor: Tansiyon/Şeker ölçümü '
+            'unutulmuş olabilir.',
+      ),
       AlertState.normal => (
         context.sc.normal,
         'Bugün Normal',
@@ -231,7 +237,7 @@ class StatusCard extends StatelessWidget {
             Row(
               children: [
                 Icon(
-                  s.alertState == AlertState.normal
+                  s.alertState == AlertState.normal && !s.medicalWarning
                       ? Icons.verified_user
                       : Icons.warning_amber_rounded,
                   color: Colors.white,

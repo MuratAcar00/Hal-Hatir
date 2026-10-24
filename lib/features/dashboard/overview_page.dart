@@ -10,6 +10,7 @@ import '../family/family_screen.dart';
 import 'activity_rhythm_chart.dart';
 import 'dashboard_widgets.dart';
 import 'devices.dart';
+import 'medical_summary.dart';
 
 class OverviewPage extends StatelessWidget {
   const OverviewPage({super.key});
@@ -79,6 +80,8 @@ class OverviewPage extends StatelessWidget {
             ),
           ],
         ),
+        const SizedBox(height: 16),
+        const MedicalSummaryCard(),
         const SizedBox(height: 16),
         _TwoColumn(
           left: DashCard(

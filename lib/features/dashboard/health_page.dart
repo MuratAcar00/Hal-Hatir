@@ -4,6 +4,7 @@ import '../../core/ui/hover_card.dart';
 import '../../core/ui/section_card.dart';
 import '../family/health_trends.dart';
 import '../family/weekly_chart.dart';
+import 'medical_summary.dart';
 
 class HealthPage extends StatelessWidget {
   const HealthPage({super.key});
@@ -13,6 +14,8 @@ class HealthPage extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
       children: [
+        const MedicalSummaryCard(),
+        const SizedBox(height: 16),
         LayoutBuilder(
           builder: (context, c) {
             const trends = LiftedCard(child: HealthTrendsCard());

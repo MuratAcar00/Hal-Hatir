@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'alert_engine.dart';
 import 'clock.dart';
+import 'medical.dart';
 import 'models.dart';
 import 'notifier.dart';
 import 'rhythm.dart';
@@ -16,7 +17,7 @@ enum Role { home, family }
 
 /// App-wide state: simulated clock, events, rhythm and alert engine.
 class AppState extends ChangeNotifier {
-  AppState._(this._prefs, this.clock, this.events) {
+  AppState._(this._prefs, this.clock, this.events, this.medical) {
     engine = AlertEngine(clock);
     rhythm = Rhythm.learn(events, clock.now());
     _rhythmDay = dayOf(clock.now());
@@ -29,10 +30,12 @@ class AppState extends ChangeNotifier {
   static const _kSettings = 'settings';
   static const _kLastAck = 'lastAckAt';
   static const _kPrivacySeen = 'privacySeen';
+  static const _kMedical = 'medical';
 
   final SharedPreferences _prefs;
   final SimClock clock;
   final List<SensorEvent> events;
+  final List<MedicalReading> medical;
   late final AlertEngine engine;
   late Rhythm rhythm;
   late DateTime _rhythmDay;
@@ -60,7 +63,13 @@ class AppState extends ChangeNotifier {
               .toList()
         : seedHistory(start);
     final clock = SimClock(start)..setSpeed(prefs.getInt(_kSpeed) ?? 1);
-    final s = AppState._(prefs, clock, events);
+    final medRaw = prefs.getString(_kMedical);
+    final medical = medRaw != null
+        ? (jsonDecode(medRaw) as List)
+              .map((e) => MedicalReading.fromJson(e as Map<String, dynamic>))
+              .toList()
+        : seedMedical(start);
+    final s = AppState._(prefs, clock, events, medical);
     final eng = prefs.getString(_kEngine);
     if (eng != null) s.engine.loadJson(jsonDecode(eng) as Map<String, dynamic>);
     final st = prefs.getString(_kSettings);
@@ -123,6 +132,37 @@ class AppState extends ChangeNotifier {
   }
 
   bool get deviceOffline => engine.deviceOffline;
+
+  /// Simulated medical device reading (hub must be online).
+  void addMedical(MedicalKind kind, {int? score}) {
+    if (deviceOffline) return;
+    medical.add(MedicalReading(kind, now, score: score));
+    _save();
+    notifyListeners();
+  }
+
+  MedicalReading? lastMedical(MedicalKind kind) {
+    MedicalReading? last;
+    for (final r in medical) {
+      if (r.kind != kind || r.time.isAfter(now)) continue;
+      if (last == null || r.time.isAfter(last.time)) last = r;
+    }
+    return last;
+  }
+
+  /// No blood pressure or glucose reading for 48 simulated hours.
+  bool get medicalDataStale {
+    final bp = lastMedical(MedicalKind.bloodPressure)?.time;
+    final gl = lastMedical(MedicalKind.glucose)?.time;
+    final times = [bp, gl].whereType<DateTime>();
+    if (times.isEmpty) return false;
+    final last = times.reduce((a, b) => a.isAfter(b) ? a : b);
+    return !now.isBefore(last.add(const Duration(hours: 48)));
+  }
+
+  /// Yellow family banner: stale data, no other alert, monitoring not paused.
+  bool get medicalWarning =>
+      alertState == AlertState.normal && !settings.paused && medicalDataStale;
 
   /// "Elektrik/İnternet Kes" toggle.
   void toggleOffline() {
@@ -301,6 +341,10 @@ class AppState extends ChangeNotifier {
       jsonEncode(events.map((e) => e.toJson()).toList()),
     );
     _prefs.setString(_kEngine, jsonEncode(engine.toJson()));
+    _prefs.setString(
+      _kMedical,
+      jsonEncode(medical.map((e) => e.toJson()).toList()),
+    );
     _prefs.setString(_kSimNow, now.toIso8601String());
   }
 
