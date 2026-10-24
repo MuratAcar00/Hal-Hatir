@@ -1,430 +1,228 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/alert_engine.dart';
 import '../../core/app_state.dart';
 import '../../core/models.dart';
 import '../../core/ui/app_colors.dart';
-import '../../core/ui/app_scaffold.dart';
-import '../../core/ui/section_card.dart';
-import '../../core/alert_engine.dart';
-import '../home_simulator/home_simulator_screen.dart' show personName;
-import 'contact_dialogs.dart';
-import 'alert_history.dart';
-import 'health_trends.dart';
-import 'settings_screen.dart';
-import 'weekly_chart.dart';
+import '../../core/ui/safety_footer.dart';
+import '../home_simulator/simulator_panel.dart';
+
+const personName = 'Ayşe Hanım';
+
+const _months = [
+  'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
+  'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
+];
+
+String _sensorLabel(ActivityType t) => switch (t) {
+  ActivityType.kettle => 'Çaydanlık',
+  ActivityType.door => 'Kapı',
+  ActivityType.motionKitchen => 'Mutfak',
+  ActivityType.motionBedroom => 'Yatak odası',
+};
+
+class _Status {
+  const _Status(this.text, this.color, {this.detail, this.actions = const []});
+  final String text;
+  final Color color;
+  final String? detail;
+  final List<(String, VoidCallback)> actions;
+}
+
+Future<void> _call(String number) =>
+    launchUrl(Uri(scheme: 'tel', path: number));
+
+_Status _statusOf(AppState s) {
+  final e = s.engine;
+  if (s.deviceOffline) {
+    return _Status(
+      'Bağlantı yok. Durum bilinmiyor.',
+      AppColors.muted,
+      actions: [('Yeniden bağlan', s.toggleOffline)],
+    );
+  }
+  if (e.inactivity == Inactivity.asking) {
+    return _Status(
+      '48 saattir hareket yok. Evde kimse yok mu?',
+      AppColors.attention,
+      actions: [('Evet, alarmları dondur', s.confirmInactivity)],
+    );
+  }
+  if (e.inactivity == Inactivity.frozen) {
+    return _Status(
+      'Alarmlar donduruldu.',
+      AppColors.muted,
+      actions: [
+        (
+          'Dondurmayı kaldır',
+          () => s.updateSettings(s.settings.copyWith(paused: false)),
+        ),
+      ],
+    );
+  }
+  if (s.alertState == AlertState.normal) {
+    if (e.isGuestDay) {
+      return const _Status('Bugün misafir var. Uyarılar kapalı.', AppColors.muted);
+    }
+    if (s.settings.paused) {
+      return const _Status('Uyarılar duraklatıldı.', AppColors.muted);
+    }
+    final started = s.eventsOn(s.now).isNotEmpty;
+    return _Status(
+      started
+          ? '$personName güne başladı. Her şey normal.'
+          : 'Henüz hareket yok. Her şey normal.',
+      AppColors.normal,
+    );
+  }
+  final phone = s.settings.familyPhone;
+  return _Status(
+    "${s.now.hour < 12 ? 'Sabah rutini' : 'Günlük rutin'} gecikti. Kontrol edin.",
+    s.alertState == AlertState.softCheck
+        ? AppColors.attention
+        : AppColors.alert,
+    detail: e.explanation,
+    actions: [
+      if (phone.isNotEmpty) ('Aileyi ara', () => _call(phone)),
+      ("112'yi ara", () => _call('112')),
+    ],
+  );
+}
 
 class FamilyScreen extends StatelessWidget {
   const FamilyScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final s = context.watch<AppState>();
-    final last = s.lastEvent;
-    return AppScaffold(
-      title: 'Aile uygulaması',
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.settings),
-          tooltip: 'Ayarlar',
-          onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
-          ),
-        ),
-      ],
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 48),
-        children: [
-          const AlertBanner(),
-          const StatusCard(),
-          if (s.alertState == AlertState.normal &&
-              s.lastAckAt != null &&
-              sameDay(s.lastAckAt!, s.now))
-            Card(
-              child: ListTile(
-                leading: Icon(
-                  Icons.verified_outlined,
-                  color: context.sc.normal,
-                  size: 30,
-                ),
-                title: Text(
-                  "Yakınınız ${hm(s.lastAckAt!)}'de iyi olduğunu bildirdi",
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-          SectionCard(
-            icon: Icons.schedule,
-            title: 'Son Aktivite',
-            child: Text(
-              last == null
-                  ? 'Kayıt yok'
-                  : '${sameDay(last.time, s.now) ? 'Bugün' : dateText(last.time)} '
-                        '${hm(last.time)} · ${last.type.label}',
-              style: const TextStyle(fontSize: 18),
-            ),
-          ),
-          const ExpectedVsActual(),
-          const SectionCard(
-            icon: Icons.show_chart,
-            title: 'Haftalık ritim: günün ilk hareketi',
-            child: SizedBox(height: 200, child: WeeklyChart()),
-          ),
-          const HealthTrendsCard(),
-          const WeeklySummary(),
-          const AlertHistoryList(),
-        ],
-      ),
-    );
-  }
-}
-
-class _ModeCard extends StatelessWidget {
-  const _ModeCard({
-    required this.color,
-    required this.icon,
-    required this.title,
-    required this.detail,
-    this.action,
-  });
-
-  final Color color;
-  final IconData icon;
-  final String title;
-  final String detail;
-  final Widget? action;
-
-  @override
-  Widget build(BuildContext context) => BannerCard(
-    color: color,
-    child: Padding(
-      padding: const EdgeInsets.all(28),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: Colors.white, size: 30),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            detail,
-            style: const TextStyle(fontSize: 16, color: Colors.white),
-          ),
-          if (action != null) ...[
-            const SizedBox(height: 12),
-            Theme(
-              data: Theme.of(context).copyWith(
-                colorScheme: Theme.of(context).colorScheme
-                    .copyWith(primary: Colors.white, onPrimary: color),
-              ),
-              child: action!,
-            ),
-          ],
-        ],
-      ),
-    ),
-  );
-}
-
-class StatusCard extends StatelessWidget {
-  const StatusCard({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final s = context.watch<AppState>();
-    // Hardware / mode states look different from the red health alert.
-    if (s.deviceOffline) {
-      return _ModeCard(
-        color: context.sc.offline,
-        icon: Icons.power_off,
-        title: 'Merkez Cihaz: Çevrimdışı (Elektrik kesintisi olabilir)',
-        detail:
-            'Sensör verisi alınamıyor. Bu bir sağlık uyarısı değildir; '
-            'bağlantı gelince izleme devam eder.',
-      );
-    }
-    if (s.engine.inactivity == Inactivity.asking) {
-      return _ModeCard(
-        color: context.sc.offline,
-        icon: Icons.luggage,
-        title: 'Uzun Süreli Hareketsizlik (Tatil/Hastane)',
-        detail:
-            '48 saattir hiç sensör verisi yok. Evde kimse yok mu? '
-            'Tatilde mi / hastanede mi?',
-        action: FilledButton.icon(
-          icon: const Icon(Icons.check),
-          label: const Text('Evet, evde kimse yok: alarmları dondur'),
-          onPressed: s.confirmInactivity,
-        ),
-      );
-    }
-    if (s.engine.inactivity == Inactivity.frozen) {
-      return _ModeCard(
-        color: context.sc.offline,
-        icon: Icons.ac_unit,
-        title: 'Alarmlar donduruldu (Tatil/Hastane)',
-        detail: 'Yeni bir sensör olayı gelince izleme kendiliğinden başlar.',
-        action: OutlinedButton(
-          onPressed: () => s.updateSettings(s.settings.copyWith(paused: false)),
-          child: const Text('Dondurmayı kaldır'),
-        ),
-      );
-    }
-    if (s.alertState == AlertState.normal && s.engine.isGuestDay) {
-      return _ModeCard(
-        color: context.sc.guest,
-        icon: Icons.groups,
-        title: 'Çoklu Kişi Algılandı',
-        detail:
-            'Mutfak ve yatak odasında aynı anda hareket var (misafir/temizlikçi). '
-            'Bugün uyarılar susturuldu; yarın normale döner.',
-      );
-    }
-    final (color, title, detail) = switch (s.alertState) {
-      AlertState.normal when s.medicalWarning => (
-        context.sc.attention,
-        'Dikkat',
-        'Medikal cihazlardan veri alınamıyor: Tansiyon/Şeker ölçümü '
-            'unutulmuş olabilir.',
-      ),
-      AlertState.normal => (
-        context.sc.normal,
-        'Bugün Normal',
-        s.settings.paused
-            ? 'Ziyaretçi / tatil modu açık: uyarılar duraklatıldı.'
-            : s.settings.isMonitoring(s.now)
-            ? 'Rutin beklendiği gibi.'
-            : 'İzleme saatleri dışında, yeni uyarı gönderilmez.',
-      ),
-      AlertState.softCheck => (
-        context.sc.attention,
-        'Dikkat',
-        'Beklenen bir hareket olmadı. Yakınınıza "İyi misiniz?" diye soruldu.',
-      ),
-      AlertState.familyAlert => (
-        context.sc.alert,
-        'Uyarı',
-        'Yakınınız 15 dakikadır cevap vermedi. Lütfen arayın.',
-      ),
-      AlertState.secondContactAlert => (
-        context.sc.alert,
-        'Uyarı',
-        'Hâlâ cevap yok. ${s.settings.secondContactName.isEmpty ? 'İkinci kişiye' : '${s.settings.secondContactName} adlı kişiye'} de haber verildi.',
-      ),
-    };
-    return BannerCard(
-      color: color,
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  s.alertState == AlertState.normal && !s.medicalWarning
-                      ? Icons.verified_user
-                      : Icons.warning_amber_rounded,
-                  color: Colors.white,
-                  size: 32,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(
-              detail,
-              style: const TextStyle(
-                fontSize: 18,
-                color: Colors.white,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            if (s.engine.explanation != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Neden uyardı? ${s.engine.explanation}',
-                style: const TextStyle(color: Colors.white),
-              ),
-            ],
-            if (s.alertState == AlertState.familyAlert ||
-                s.alertState == AlertState.secondContactAlert) ...[
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
+    final wide = MediaQuery.sizeOf(context).width >= 760;
+    final content = _Content(showSimulator: !wide);
+    return Scaffold(
+      body: SafeArea(
+        child: wide
+            ? Row(
                 children: [
-                  _CallButton(
-                    label: 'Yakınımı ara',
-                    name: personName,
-                    phone: s.settings.familyPhone,
-                  ),
-                  if (s.alertState == AlertState.secondContactAlert)
-                    _CallButton(
-                      label: s.settings.secondContactName.isEmpty
-                          ? 'İkinci kişiyi ara'
-                          : '${s.settings.secondContactName} adlı kişiyi ara',
-                      name: s.settings.secondContactName.isEmpty
-                          ? 'İkinci kişi'
-                          : s.settings.secondContactName,
-                      phone: s.settings.secondContactPhone,
+                  Expanded(
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 500),
+                        child: content,
+                      ),
                     ),
-                  _CallButton(
-                    label: "112'yi ara",
-                    name: '112 Acil Çağrı Merkezi',
-                    phone: '112',
-                    emergency: true,
                   ),
+                  const SimulatorPanel(sidebar: true),
                 ],
-              ),
-            ],
-          ],
-        ),
+              )
+            : content,
       ),
     );
   }
 }
 
-class ExpectedVsActual extends StatelessWidget {
-  const ExpectedVsActual({super.key});
+class _Content extends StatelessWidget {
+  const _Content({required this.showSimulator});
+  final bool showSimulator;
 
   @override
   Widget build(BuildContext context) {
     final s = context.watch<AppState>();
     final now = s.now;
-    final today = s.eventsOn(now);
-    final expected = s.rhythm.forDay(now);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
-              child: Row(
-                children: [
-                  Icon(Icons.checklist, color: context.sc.primary, size: 28),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Bugün beklenen / gerçekleşen (${isWeekend(now) ? 'hafta sonu' : 'hafta içi'})',
-                      style: const TextStyle(
-                        fontSize: 19,
-                        fontWeight: FontWeight.w800,
-                      ),
+    final status = _statusOf(s);
+    final recent = _recent(s);
+
+    return Column(
+      children: [
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(32, 40, 32, 24),
+            children: [
+              Text(
+                hm(now),
+                style: const TextStyle(
+                  fontSize: 112,
+                  fontWeight: FontWeight.w900,
+                  height: 1,
+                  letterSpacing: -4,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${weekdayLong[now.weekday - 1]}, ${now.day} ${_months[now.month - 1]}',
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 64),
+              Text(
+                status.text,
+                style: TextStyle(
+                  fontSize: 44,
+                  fontWeight: FontWeight.w900,
+                  height: 1.12,
+                  color: status.color,
+                ),
+              ),
+              if (status.detail != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  status.detail!,
+                  style: const TextStyle(fontSize: 16, color: AppColors.muted),
+                ),
+              ],
+              if (status.actions.isNotEmpty) const SizedBox(height: 16),
+              for (final (label, onTap) in status.actions)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(onPressed: onTap, child: Text(label)),
+                ),
+              const SizedBox(height: 64),
+              if (recent.isEmpty)
+                const Text(
+                  'Henüz kayıt yok.',
+                  style: TextStyle(fontSize: 18, color: AppColors.muted),
+                ),
+              for (var i = 0; i < recent.length; i++) ...[
+                if (i > 0) const Divider(),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  child: Text(
+                    _line(recent[i], now),
+                    style: const TextStyle(
+                      fontSize: 20,
+                      color: AppColors.muted,
                     ),
                   ),
-                ],
-              ),
-            ),
-            if (expected.isEmpty)
-              const ListTile(title: Text('Henüz yeterli geçmiş veri yok.')),
-            for (final exp in expected)
-              Builder(
-                builder: (_) {
-                  final first = today
-                      .where((e) => e.type == exp.type)
-                      .firstOrNull;
-                  final late =
-                      first == null && !now.isBefore(exp.deadlineOn(now));
-                  // Missed but answered with "İyiyim": neutral, not red.
-                  final confirmed =
-                      late &&
-                      s.lastAckAt != null &&
-                      sameDay(s.lastAckAt!, now) &&
-                      s.engine.handled.contains(
-                        '${dayKey(now)}|${exp.type.id}',
-                      );
-                  return ListTile(
-                    leading: Icon(
-                      first != null
-                          ? Icons.check_circle
-                          : confirmed
-                          ? Icons.check_circle_outline
-                          : late
-                          ? Icons.error
-                          : Icons.hourglass_empty,
-                      color: first != null
-                          ? context.sc.normal
-                          : confirmed
-                          ? context.sc.offline
-                          : late
-                          ? context.sc.alert
-                          : context.sc.muted,
-                    ),
-                    title: Text(exp.type.label),
-                    subtitle: Text('Beklenen ${exp.windowText}'),
-                    trailing: Text(
-                      first != null
-                          ? hm(first.time)
-                          : confirmed
-                          ? 'Atlandı, onaylandı'
-                          : late
-                          ? 'Olmadı'
-                          : 'Bekleniyor',
-                    ),
-                  );
-                },
-              ),
-          ],
+                ),
+              ],
+              if (showSimulator) ...[
+                const SizedBox(height: 48),
+                const SimulatorPanel(sidebar: false),
+              ],
+            ],
+          ),
         ),
-      ),
+        const SafetyFooter(),
+      ],
     );
   }
-}
 
-/// Opens the call card (demo) with a real "tel:" action for phones.
-class _CallButton extends StatelessWidget {
-  const _CallButton({
-    required this.label,
-    required this.name,
-    required this.phone,
-    this.emergency = false,
-  });
+  /// Last three events; yesterday fills in when today is short.
+  List<SensorEvent> _recent(AppState s) {
+    final all = [
+      ...s.eventsOn(s.now.subtract(const Duration(days: 1))),
+      ...s.eventsOn(s.now),
+    ];
+    return all.reversed.take(3).toList();
+  }
 
-  final String label;
-  final String name;
-  final String phone;
-  final bool emergency;
-
-  @override
-  Widget build(BuildContext context) {
-    return FilledButton.icon(
-      style: FilledButton.styleFrom(
-        backgroundColor: emergency ? Colors.white : Colors.white24,
-        foregroundColor: emergency ? context.sc.alert : Colors.white,
-      ),
-      icon: const Icon(Icons.call),
-      label: Text(label),
-      onPressed: () =>
-          showCallDialog(context, name: name, phone: phone, emergency: emergency),
-    );
+  String _line(SensorEvent e, DateTime now) {
+    final prefix = sameDay(e.time, now)
+        ? ''
+        : sameDay(e.time, now.subtract(const Duration(days: 1)))
+        ? 'Dün '
+        : '${two(e.time.day)}.${two(e.time.month)} ';
+    return '$prefix${hm(e.time)} - ${_sensorLabel(e.type)}';
   }
 }
