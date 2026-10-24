@@ -3,6 +3,9 @@ import 'package:provider/provider.dart';
 
 import '../app_state.dart';
 
+/// At this width and above both roles are shown side by side.
+const wideBreakpoint = 900.0;
+
 /// Scaffold with role switch (top right) and the safety footer.
 class AppScaffold extends StatelessWidget {
   const AppScaffold({
@@ -21,12 +24,13 @@ class AppScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.read<AppState>();
+    final wide = MediaQuery.sizeOf(context).width >= wideBreakpoint;
     return Scaffold(
       appBar: AppBar(
         title: Text(title),
         actions: [
           ...actions,
-          if (roleSwitch)
+          if (roleSwitch && !wide)
             PopupMenuButton<String>(
               icon: const Icon(Icons.swap_horiz),
               tooltip: 'Rolü değiştir',
@@ -48,7 +52,14 @@ class AppScaffold extends StatelessWidget {
             ),
         ],
       ),
-      body: body,
+      body: wide
+          ? Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 720),
+                child: body,
+              ),
+            )
+          : body,
       bottomNavigationBar: const SafetyFooter(),
     );
   }
