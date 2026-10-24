@@ -80,4 +80,41 @@ void main() {
       greaterThan(r.get(ActivityType.motionKitchen, false)!.medianMin),
     );
   });
+
+  test('activity on only some weekend days is not expected', () {
+    final events = <SensorEvent>[];
+    for (var n = 1; n <= 14; n++) {
+      final d = DateTime(monday.year, monday.month, monday.day - n);
+      if (!isWeekend(d)) continue;
+      // Door on all 4 weekend days, kettle on 3 of 4.
+      events.add(
+        SensorEvent(ActivityType.door, d.add(const Duration(hours: 10))),
+      );
+      if (n != 1) {
+        events.add(
+          SensorEvent(ActivityType.kettle, d.add(const Duration(hours: 8))),
+        );
+      }
+    }
+    final r = Rhythm.learn(events, monday);
+    expect(r.get(ActivityType.door, true), isNull);
+    expect(r.get(ActivityType.kettle, true), isNull);
+  });
+
+  test('after-midnight night event does not skew first-event median', () {
+    final events = [
+      for (var n = 3; n <= 7; n++)
+        SensorEvent(ActivityType.motionBedroom, daysBefore(monday, n, 450)),
+      SensorEvent(ActivityType.motionBedroom, daysBefore(monday, 4, 10)),
+      SensorEvent(ActivityType.motionBedroom, daysBefore(monday, 5, 10)),
+      SensorEvent(ActivityType.motionBedroom, daysBefore(monday, 6, 10)),
+    ];
+    final exp = Rhythm.learn(
+      events,
+      monday,
+      days: 7,
+    ).get(ActivityType.motionBedroom, false)!;
+    expect(exp.medianMin, 450);
+    expect(exp.toleranceMin, 45);
+  });
 }

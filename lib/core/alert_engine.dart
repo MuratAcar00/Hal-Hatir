@@ -32,7 +32,8 @@ class AlertEngine {
       state == AlertState.normal || history.isEmpty ? null : history.last;
 
   /// Evaluates triggers and escalation at clock.now().
-  /// Outside monitoring hours no new alert starts; pause mode stops alerts.
+  /// Outside monitoring hours nothing starts or escalates; pause mode stops
+  /// alerts. A stage frozen overnight restarts its timer at period start.
   void tick(
     List<SensorEvent> events,
     Rhythm rhythm, {
@@ -50,6 +51,10 @@ class AlertEngine {
       explanation = due.first.explanation;
       history.add(AlertRecord(start: now, explanation: explanation!));
       _go(AlertState.softCheck, now);
+    } else if (settings.startHour != settings.endHour) {
+      if (!settings.isMonitoring(now)) return;
+      final ps = settings.periodStart(now);
+      if (stateSince!.isBefore(ps)) stateSince = ps;
     }
     if (state == AlertState.softCheck &&
         !now.isBefore(stateSince!.add(softCheckTimeout))) {

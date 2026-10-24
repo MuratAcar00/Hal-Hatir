@@ -34,8 +34,12 @@ class Rhythm {
   Rhythm(this._map);
 
   static const minToleranceMin = 45;
-  // Activities seen on fewer days than this share are not "daily" (e.g. door).
-  static const minDailyShare = 0.6;
+  // Activities seen on fewer days than this share are not "daily".
+  static const minDailyShare = 0.8;
+  // Occasional by nature (door 3-4x/week); never a daily expectation.
+  static const occasional = {ActivityType.door};
+  // Night events before this hour don't count as the day's first event.
+  static const dayStartHour = 4;
 
   final Map<String, Expectation> _map;
 
@@ -59,6 +63,7 @@ class Rhythm {
     final first = <String, int>{};
     for (final e in events) {
       if (e.time.isBefore(start) || !e.time.isBefore(end)) continue;
+      if (e.time.hour < dayStartHour) continue;
       final k = '${dayKey(e.time)}|${e.type.id}';
       final m = minuteOfDay(e.time);
       first[k] = min(first[k] ?? m, m);
@@ -73,6 +78,7 @@ class Rhythm {
       final group = allDays.where((d) => isWeekend(d) == weekend).toList();
       if (group.isEmpty) continue;
       for (final t in ActivityType.values) {
+        if (occasional.contains(t)) continue;
         final samples = group
             .map((d) => first['${dayKey(d)}|${t.id}'])
             .whereType<int>()

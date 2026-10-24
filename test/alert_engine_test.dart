@@ -151,5 +151,25 @@ void main() {
       final copy = AlertEngine(clock)..loadJson(engine.toJson());
       expect(copy.history.single.maxLevel, AlertState.familyAlert);
     });
+
+    test('escalation freezes outside monitoring hours', () {
+      const st = MonitorSettings(startHour: 6, endHour: 23);
+      void tickAt(DateTime t) {
+        clock.current = t;
+        engine.tick(events, rhythm, settings: st);
+      }
+
+      tickAt(monday.add(const Duration(hours: 22, minutes: 50)));
+      expect(engine.state, AlertState.softCheck);
+      tickAt(monday.add(const Duration(hours: 23, minutes: 30)));
+      expect(engine.state, AlertState.softCheck);
+      final tuesday = monday.add(const Duration(days: 1));
+      tickAt(tuesday.add(const Duration(hours: 3)));
+      expect(engine.state, AlertState.softCheck);
+      tickAt(tuesday.add(const Duration(hours: 6, minutes: 14)));
+      expect(engine.state, AlertState.softCheck);
+      tickAt(tuesday.add(const Duration(hours: 6, minutes: 15)));
+      expect(engine.state, AlertState.familyAlert);
+    });
   });
 }
