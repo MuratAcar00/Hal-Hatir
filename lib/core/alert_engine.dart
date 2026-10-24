@@ -1,0 +1,146 @@
+import 'clock.dart';
+import 'models.dart';
+import 'rhythm.dart';
+
+class _Trigger {
+  const _Trigger(this.key, this.explanation);
+  final String key;
+  final String explanation;
+}
+
+/// normal -> soft_check -> family_alert -> second_contact_alert.
+/// "İyiyim" or any new sensor event returns to normal.
+class AlertEngine {
+  AlertEngine(this.clock);
+
+  final Clock clock;
+
+  static const softCheckTimeout = Duration(minutes: 15);
+  static const familyTimeout = Duration(minutes: 30);
+  static const silenceLimit = Duration(hours: 10);
+
+  AlertState state = AlertState.normal;
+  DateTime? stateSince;
+  String? explanation;
+  DateTime? lastReset;
+  // Deviations already answered, so they don't fire again the same day.
+  final Set<String> handled = {};
+
+  /// Evaluates triggers and escalation at clock.now().
+  void tick(List<SensorEvent> events, Rhythm rhythm) {
+    final now = clock.now();
+    if (state == AlertState.normal) {
+      final due = _dueTriggers(now, events, rhythm);
+      if (due.isEmpty) return;
+      explanation = due.first.explanation;
+      _go(AlertState.softCheck, now);
+    }
+    if (state == AlertState.softCheck &&
+        !now.isBefore(stateSince!.add(softCheckTimeout))) {
+      _go(AlertState.familyAlert, stateSince!.add(softCheckTimeout));
+    }
+    if (state == AlertState.familyAlert &&
+        !now.isBefore(stateSince!.add(familyTimeout))) {
+      _go(AlertState.secondContactAlert, stateSince!.add(familyTimeout));
+    }
+  }
+
+  /// "İyiyim" pressed.
+  void acknowledge(List<SensorEvent> events, Rhythm rhythm) =>
+      _reset(events, rhythm);
+
+  /// A new sensor event arrived ([events] already contains it).
+  void onSensorEvent(List<SensorEvent> events, Rhythm rhythm) {
+    if (state != AlertState.normal) _reset(events, rhythm);
+  }
+
+  /// Fresh day: forget today's handled deviations.
+  void resetDay(DateTime day) {
+    handled.removeWhere((k) => k.startsWith(dayKey(day)));
+    state = AlertState.normal;
+    stateSince = null;
+    explanation = null;
+    lastReset = null;
+  }
+
+  void _reset(List<SensorEvent> events, Rhythm rhythm) {
+    final now = clock.now();
+    handled.addAll(_dueTriggers(now, events, rhythm).map((t) => t.key));
+    state = AlertState.normal;
+    stateSince = null;
+    explanation = null;
+    lastReset = now;
+  }
+
+  void _go(AlertState s, DateTime at) {
+    state = s;
+    stateSince = at;
+  }
+
+  List<_Trigger> _dueTriggers(
+    DateTime now,
+    List<SensorEvent> events,
+    Rhythm rhythm,
+  ) {
+    final today = dayOf(now);
+    final past = events.where((e) => !e.time.isAfter(now)).toList();
+    final out = <_Trigger>[];
+
+    // Routine deviation: expected first event missing after window end.
+    for (final exp in rhythm.forDay(today)) {
+      final key = '${dayKey(today)}|${exp.type.id}';
+      if (handled.contains(key)) continue;
+      final deadline = exp.deadlineOn(today);
+      if (now.isBefore(deadline)) continue;
+      if (past.any((e) => e.type == exp.type && sameDay(e.time, today))) {
+        continue;
+      }
+      out.add(
+        _Trigger(
+          key,
+          'Genelde ${exp.windowText} arası ${exp.type.habit}, '
+          'bugün saat ${hm(deadline)} itibarıyla ${exp.type.missing}.',
+        ),
+      );
+    }
+
+    // Long silence: no event at all for silenceLimit.
+    var start = today;
+    for (final e in past) {
+      if (e.time.isAfter(start)) start = e.time;
+    }
+    if (lastReset != null && lastReset!.isAfter(start)) start = lastReset!;
+    final key = '${dayKey(today)}|silence|${start.toIso8601String()}';
+    if (!handled.contains(key) && now.difference(start) >= silenceLimit) {
+      out.add(
+        _Trigger(
+          key,
+          'Genelde gün içinde ${silenceLimit.inHours} saatten uzun sessizlik '
+          'olmuyor, saat ${hm(start)} sonrasında hiç hareket yok.',
+        ),
+      );
+    }
+    return out;
+  }
+
+  Map<String, dynamic> toJson() => {
+    'state': state.name,
+    'stateSince': stateSince?.toIso8601String(),
+    'explanation': explanation,
+    'lastReset': lastReset?.toIso8601String(),
+    'handled': handled.toList(),
+  };
+
+  void loadJson(Map<String, dynamic> j) {
+    state = AlertState.values.byName(j['state'] as String);
+    stateSince = _date(j['stateSince']);
+    explanation = j['explanation'] as String?;
+    lastReset = _date(j['lastReset']);
+    handled
+      ..clear()
+      ..addAll((j['handled'] as List).cast<String>());
+  }
+
+  static DateTime? _date(Object? v) =>
+      v == null ? null : DateTime.parse(v as String);
+}

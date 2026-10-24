@@ -1,0 +1,181 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../../core/app_state.dart';
+import '../../core/models.dart';
+import '../../core/ui/app_scaffold.dart';
+import 'weekly_chart.dart';
+
+class FamilyScreen extends StatelessWidget {
+  const FamilyScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = context.watch<AppState>();
+    final last = s.lastEvent;
+    return AppScaffold(
+      title: 'Aile uygulaması',
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          const _StatusCard(),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.schedule),
+              title: const Text('Son hareket'),
+              subtitle: Text(
+                last == null
+                    ? 'Kayıt yok'
+                    : '${sameDay(last.time, s.now) ? 'Bugün' : dateText(last.time)} '
+                          '${hm(last.time)} · ${last.type.label}',
+              ),
+            ),
+          ),
+          const _ExpectedVsActual(),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Haftalık ritim: günün ilk hareketi',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 12),
+                  const SizedBox(height: 200, child: WeeklyChart()),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusCard extends StatelessWidget {
+  const _StatusCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final s = context.watch<AppState>();
+    final (color, title, detail) = switch (s.alertState) {
+      AlertState.normal => (
+        Colors.green,
+        'Bugün normal',
+        'Rutin beklendiği gibi.',
+      ),
+      AlertState.softCheck => (
+        Colors.orange,
+        'Dikkat',
+        'Beklenen bir hareket olmadı. Yakınınıza "İyi misiniz?" diye soruldu.',
+      ),
+      AlertState.familyAlert => (
+        Colors.red,
+        'Uyarı',
+        'Yakınınız 15 dakikadır cevap vermedi. Lütfen arayın.',
+      ),
+      AlertState.secondContactAlert => (
+        Colors.red.shade900,
+        'Uyarı',
+        'Hâlâ cevap yok. İkinci kişiye de haber verildi.',
+      ),
+    };
+    return Card(
+      color: color,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              detail,
+              style: const TextStyle(fontSize: 16, color: Colors.white),
+            ),
+            if (s.engine.explanation != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Neden uyardı? ${s.engine.explanation}',
+                style: const TextStyle(color: Colors.white),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ExpectedVsActual extends StatelessWidget {
+  const _ExpectedVsActual();
+
+  @override
+  Widget build(BuildContext context) {
+    final s = context.watch<AppState>();
+    final now = s.now;
+    final today = s.eventsOn(now);
+    final expected = s.rhythm.forDay(now);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'Bugün beklenen / gerçekleşen (${isWeekend(now) ? 'hafta sonu' : 'hafta içi'})',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            if (expected.isEmpty)
+              const ListTile(title: Text('Henüz yeterli geçmiş veri yok.')),
+            for (final exp in expected)
+              Builder(
+                builder: (_) {
+                  final first = today
+                      .where((e) => e.type == exp.type)
+                      .firstOrNull;
+                  final late =
+                      first == null && !now.isBefore(exp.deadlineOn(now));
+                  return ListTile(
+                    leading: Icon(
+                      first != null
+                          ? Icons.check_circle
+                          : late
+                          ? Icons.error
+                          : Icons.hourglass_empty,
+                      color: first != null
+                          ? Colors.green
+                          : late
+                          ? Colors.red
+                          : Colors.grey,
+                    ),
+                    title: Text(exp.type.label),
+                    subtitle: Text('Beklenen ${exp.windowText}'),
+                    trailing: Text(
+                      first != null
+                          ? hm(first.time)
+                          : late
+                          ? 'Olmadı'
+                          : 'Bekleniyor',
+                    ),
+                  );
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
